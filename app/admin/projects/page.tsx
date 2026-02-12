@@ -27,14 +27,26 @@ const journeySteps = [
   "Submitted to council",
 ];
 
+const STEP_SLA_HOURS = 48;
+
 const getCompletedSteps = (progress: number) =>
   Math.min(
     journeySteps.length,
     Math.floor((progress / 100) * journeySteps.length),
   );
 
+const formatTimer = (ms: number) => {
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
+};
+
 type ProjectTableRow = {
   id: string;
+  id2?: string;
   clientName: string;
   clientId: string;
   agentX: string;
@@ -53,6 +65,7 @@ function ProjectsPageContent() {
     (typeof mockProjects)[0] | null
   >(null);
   const [activeStep, setActiveStep] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
   const [projects] = useState(mockProjects);
 
@@ -100,7 +113,7 @@ function ProjectsPageContent() {
         agentX: project.agentX || "Unassigned",
         agentY: project.agentY || "Unassigned",
         projectId1: clientProjects[0]?.id || project.id,
-        projectId2: clientProjects[1]?.id || "-",
+        projectId2: clientProjects[1]?.id2 || project.id2 || "N/A",
         isActive: !isClosed,
         statusLabel: isClosed ? "Closed" : "Open",
       };
@@ -200,6 +213,16 @@ function ProjectsPageContent() {
       setActiveStep(Math.max(0, completed - 1));
     }
   }, [projects, searchParams]);
+
+  useEffect(() => {
+    if (!selectedProject) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [selectedProject]);
 
   const selectedStats = useMemo(() => {
     if (!selectedProject) {
@@ -381,6 +404,22 @@ function ProjectsPageContent() {
   }, [selectedProject]);
 
   const activeInsight = stepInsights[activeStep];
+  const completedStepsCount = selectedStats?.completedSteps ?? 0;
+  const nextDueStepIndex =
+    completedStepsCount < journeySteps.length ? completedStepsCount : null;
+  const nextDueDeadline =
+    selectedProject && nextDueStepIndex !== null
+      ? new Date(selectedProject.updatedDate).getTime() +
+        STEP_SLA_HOURS * 60 * 60 * 1000
+      : null;
+  const nextDueRemainingMs =
+    nextDueDeadline !== null ? nextDueDeadline - now : null;
+  const nextDueTimerText =
+    nextDueRemainingMs === null
+      ? null
+      : nextDueRemainingMs >= 0
+        ? `Due in ${formatTimer(nextDueRemainingMs)}`
+        : `Overdue by ${formatTimer(Math.abs(nextDueRemainingMs))}`;
 
   return (
     <div className="space-y-6">
@@ -756,9 +795,22 @@ function ProjectsPageContent() {
               <p className="text-sm font-semibold text-slate-900">
                 Client Journey
               </p>
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                Step {activeStep + 1} of {journeySteps.length}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+                  Step {activeStep + 1} of {journeySteps.length}
+                </span>
+                {nextDueStepIndex !== null && nextDueTimerText && (
+                  <span
+                    className={`text-[11px] font-semibold uppercase tracking-wide px-3 py-1 rounded-full ${
+                      nextDueRemainingMs !== null && nextDueRemainingMs < 0
+                        ? "text-rose-700 bg-rose-50"
+                        : "text-amber-700 bg-amber-50"
+                    }`}
+                  >
+                    {nextDueTimerText}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="overflow-x-auto pb-2">
@@ -768,9 +820,12 @@ function ProjectsPageContent() {
                     ? index < selectedStats.completedSteps
                     : false;
                   const isActive = activeStep === index;
+                  const isNextDue = nextDueStepIndex === index && !done;
                   const connectorClass = done
                     ? "bg-blue-200"
-                    : isActive
+                    : isNextDue
+                      ? "bg-amber-300"
+                      : isActive
                       ? "bg-blue-200"
                       : "bg-slate-200";
                   return (
@@ -784,6 +839,8 @@ function ProjectsPageContent() {
                           className={`flex h-10 w-10 items-center justify-center rounded-full border transition-colors shadow-sm ${
                             done
                               ? "bg-blue-600 border-blue-600 text-white"
+                              : isNextDue
+                                ? "bg-amber-50 border-amber-400 text-amber-700 animate-pulse"
                               : isActive
                                 ? "bg-white border-2 border-blue-500 text-blue-600"
                                 : "bg-slate-100 border-slate-200 text-slate-500"
@@ -793,6 +850,8 @@ function ProjectsPageContent() {
                             <span className="flex h-6 w-6 items-center justify-center rounded-full text-white text-blue-600">
                               <CheckCircle2 className="w-5 h-5" />
                             </span>
+                          ) : isNextDue ? (
+                            <Clock className="w-5 h-5" />
                           ) : isActive ? (
                             <Clock className="w-5 h-5" />
                           ) : (
@@ -801,7 +860,9 @@ function ProjectsPageContent() {
                         </span>
                         <span
                           className={`text-[11px] font-semibold text-center max-w-[120px] ${
-                            isActive
+                            isNextDue
+                              ? "text-amber-700"
+                              : isActive
                               ? "text-blue-600"
                               : done
                                 ? "text-blue-700"
@@ -810,6 +871,17 @@ function ProjectsPageContent() {
                         >
                           {step}
                         </span>
+                        {isNextDue && nextDueTimerText && (
+                          <span
+                            className={`text-[10px] font-semibold text-center max-w-[120px] ${
+                              nextDueRemainingMs !== null && nextDueRemainingMs < 0
+                                ? "text-rose-600"
+                                : "text-amber-600"
+                            }`}
+                          >
+                            {nextDueTimerText}
+                          </span>
+                        )}
                       </button>
                       {index < journeySteps.length - 1 && (
                         <div

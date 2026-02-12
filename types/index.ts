@@ -72,6 +72,7 @@ export interface Document {
 // Project Types
 export interface Project {
   id: string;
+  id2?: string; // For India projects, optional field
   clientId: string;
   clientName: string;
   title: string;

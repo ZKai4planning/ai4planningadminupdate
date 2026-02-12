@@ -229,6 +229,7 @@ export const mockDocuments: Document[] = [
 export const mockProjects: Project[] = [
   {
     id: 'PROJ-UK-7842',
+    id2: 'PROJ-IND-1234',
     clientId: 'ABC123-089',
     clientName: 'Zafer Khan',
     title: 'Residential Extension - Brick Lane',
@@ -643,5 +644,122 @@ export const mockServices: Service[] = [
         createdDate: '2025-01-16',
       },
     ],
+  },
+];
+
+export const mockSystemAlerts = [
+  {
+    id: 'alt001',
+    title: 'Payment webhook retries exceeded threshold',
+    severity: 'high',
+    service: 'payments',
+    status: 'open',
+    createdAt: '2026-02-10T09:10:00Z',
+    owner: 'Platform Ops',
+  },
+  {
+    id: 'alt002',
+    title: 'Council API latency above baseline in UK region',
+    severity: 'medium',
+    service: 'council-sync',
+    status: 'investigating',
+    createdAt: '2026-02-11T14:25:00Z',
+    owner: 'Integrations Team',
+  },
+  {
+    id: 'alt003',
+    title: 'Nightly document indexing completed with warnings',
+    severity: 'low',
+    service: 'documents',
+    status: 'monitoring',
+    createdAt: '2026-02-11T23:40:00Z',
+    owner: 'Data Team',
+  },
+];
+
+export const mockAdminAccessLogs = [
+  {
+    id: 'acl001',
+    adminName: 'Alice Grant',
+    role: 'admin',
+    action: 'Role updated for tm003',
+    sourceIp: '81.12.4.119',
+    timestamp: '2026-02-10T11:12:00Z',
+    result: 'success',
+  },
+  {
+    id: 'acl002',
+    adminName: 'James Mitchell',
+    role: 'agent_x',
+    action: 'Attempted to access billing settings',
+    sourceIp: '81.12.4.119',
+    timestamp: '2026-02-10T11:40:00Z',
+    result: 'blocked',
+  },
+  {
+    id: 'acl003',
+    adminName: 'Priya Singh',
+    role: 'agent_y',
+    action: 'Exported client activity report',
+    sourceIp: '103.24.9.51',
+    timestamp: '2026-02-11T08:05:00Z',
+    result: 'success',
+  },
+];
+
+export const mockOperationsDocs = [
+  {
+    id: 'docops001',
+    title: 'Incident escalation runbook',
+    category: 'incident-response',
+    updatedAt: '2026-02-05',
+    owner: 'Platform Ops',
+    readTime: '8 min',
+  },
+  {
+    id: 'docops002',
+    title: 'Admin role and permission matrix',
+    category: 'access-control',
+    updatedAt: '2026-02-09',
+    owner: 'Security Team',
+    readTime: '6 min',
+  },
+  {
+    id: 'docops003',
+    title: 'Council submission fallback process',
+    category: 'integrations',
+    updatedAt: '2026-02-01',
+    owner: 'Integrations Team',
+    readTime: '10 min',
+  },
+];
+
+export const mockFeedbackQueue = [
+  {
+    id: 'fb001',
+    source: 'Agent X Dashboard',
+    category: 'ux',
+    priority: 'medium',
+    message: 'Need bulk update for client follow-up status to reduce repetitive actions.',
+    submittedAt: '2026-02-09T16:20:00Z',
+    submittedBy: 'James Mitchell',
+  },
+  {
+    id: 'fb002',
+    source: 'Payments Page',
+    category: 'bug',
+    priority: 'high',
+    message: 'Refund status does not refresh until manual reload after action.',
+    submittedAt: '2026-02-10T10:55:00Z',
+    submittedBy: 'Alice Grant',
+  },
+  {
+    id: 'fb003',
+    source: 'Documents Module',
+    category: 'feature',
+    priority: 'low',
+    message: 'Add filter by council and decision status in document review list.',
+    submittedAt: '2026-02-11T12:05:00Z',
+    submittedBy: 'Priya Singh',
   },
 ];

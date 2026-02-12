@@ -353,14 +353,14 @@ export default function Sidebar({
 
       {/* Bottom Section */}
       <div className="mt-auto border-t border-slate-200">
-        <div className="p-3">
+        {/* <div className="p-3">
           <button
             onClick={onGetStarted}
             className="w-full px-3 py-2 rounded-md bg-slate-100 hover:bg-slate-200 text-sm"
           >
             💬 {!collapsed && "Got Feedback?"}
           </button>
-        </div>
+        </div> */}
 
         {!collapsed && (
           <div className="px-4 py-3 border-t border-slate-200">
