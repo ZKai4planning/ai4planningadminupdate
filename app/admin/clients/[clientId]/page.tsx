@@ -4,13 +4,14 @@ import { AlertCircle, ArrowLeft, CheckCircle2, Clock, UserRound } from "lucide-r
 import { mockClients, mockProjects } from "@/app/lib/mock-data";
 
 type ClientFollowUpPageProps = {
-  params: {
+  params: Promise<{
     clientId: string;
-  };
+  }>;
 };
 
-export default function ClientFollowUpPage({ params }: ClientFollowUpPageProps) {
-  const client = mockClients.find((item) => item.id === params.clientId);
+export default async function ClientFollowUpPage({ params }: ClientFollowUpPageProps) {
+  const { clientId } = await params;
+  const client = mockClients.find((item) => item.id === clientId);
 
   if (!client) {
     notFound();

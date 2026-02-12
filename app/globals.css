@@ -161,6 +161,38 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(circle at 8% 6%, rgba(59, 130, 246, 0.08), transparent 28%),
+      radial-gradient(circle at 92% 4%, rgba(14, 165, 233, 0.06), transparent 24%),
+      linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(248, 250, 252, 1) 100%);
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    background: rgba(37, 99, 235, 0.18);
+    color: #0f172a;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    transition:
+      background-color 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease,
+      box-shadow 180ms ease,
+      transform 180ms ease;
+  }
+
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  button:focus-visible,
+  a:focus-visible {
+    outline: 2px solid rgba(59, 130, 246, 0.45);
+    outline-offset: 1px;
   }
 }
 
@@ -186,6 +218,17 @@
   }
 }
 
+@keyframes fadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @layer utilities {
   .animate-shimmer {
     animation: shimmer 2s infinite;
@@ -193,6 +236,9 @@
   /* Add expand horizontal animation class */
   .animate-expand-horizontal {
     animation: expandHorizontal 0.3s ease-out forwards;
+  }
+  .animate-fadeIn {
+    animation: fadeInUp 280ms ease-out both;
   }
 }
 

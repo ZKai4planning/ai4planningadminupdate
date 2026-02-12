@@ -116,10 +116,10 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <div className="bg-white/95 backdrop-blur rounded-2xl shadow-[0_8px_30px_rgba(15,23,42,0.06)] border border-slate-200 p-6">
 
       {/* TOP BAR */}
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-wrap gap-3 justify-between items-center mb-5">
         <input
           placeholder="Search..."
           value={search}
@@ -127,7 +127,7 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
             setSearch(e.target.value)
             setCurrentPage(1)
           }}
-          className="border border-slate-200 px-4 py-2 rounded-lg w-64 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="border border-slate-200 px-4 py-2.5 rounded-xl w-64 text-sm bg-slate-50/70 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
 
         <div className="flex gap-3">
@@ -146,7 +146,7 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
 
           <button
             onClick={handleExport}
-            className="flex items-center gap-2 border border-slate-200 px-4 py-2 rounded-lg text-sm hover:bg-slate-50"
+            className="flex items-center gap-2 border border-slate-200 px-4 py-2.5 rounded-xl text-sm bg-white hover:bg-slate-50"
           >
             <Download className="w-4 h-4" />
             Export
@@ -155,9 +155,9 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
       </div>
 
       {/* TABLE */}
-      <div className="overflow-auto border border-slate-200 rounded-lg">
+      <div className="overflow-auto border border-slate-200 rounded-xl">
         <table className="min-w-full table-fixed">
-          <thead className="bg-gray-100 sticky top-0">
+          <thead className="bg-slate-100/90 sticky top-0 backdrop-blur">
             <tr className="border-b border-slate-200">
          {columns.map(col => (
   <th
@@ -210,7 +210,7 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
                 ? { left: `${col.left}px` }
                 : undefined
             }
-            className={`px-4 py-1 text-sm whitespace-nowrap
+            className={`px-4 py-2 text-sm whitespace-nowrap
               ${col.sticky ? "sticky bg-white z-20" : ""}
               ${col.className ?? ""}
             `}
@@ -231,7 +231,7 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
       </div>
 
       {/* FOOTER */}
-      <div className="flex justify-between items-center mt-4 text-sm">
+      <div className="flex flex-wrap gap-3 justify-between items-center mt-5 text-sm">
         <div>
           Rows per page:
           <select
@@ -240,7 +240,7 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
               setRowsPerPage(Number(e.target.value))
               setCurrentPage(1)
             }}
-            className="ml-2 border border-slate-200 px-2 py-1 rounded bg-white"
+            className="ml-2 border border-slate-200 px-2 py-1 rounded-lg bg-white"
           >
             {[5, 10, 20, 50].map(n => (
               <option key={n}>{n}</option>
@@ -252,14 +252,14 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
           <button
             disabled={currentPage === 1}
             onClick={() => setCurrentPage(p => p - 1)}
-            className="px-3 py-1 border border-slate-200 rounded disabled:opacity-50 hover:bg-slate-50"
+            className="px-3 py-1.5 border border-slate-200 rounded-lg disabled:opacity-50 hover:bg-slate-50"
           >
             Prev
           </button>
           <button
             disabled={currentPage === totalPages}
             onClick={() => setCurrentPage(p => p + 1)}
-            className="px-3 py-1 border border-slate-200 rounded disabled:opacity-50 hover:bg-slate-50"
+            className="px-3 py-1.5 border border-slate-200 rounded-lg disabled:opacity-50 hover:bg-slate-50"
           >
             Next
           </button>

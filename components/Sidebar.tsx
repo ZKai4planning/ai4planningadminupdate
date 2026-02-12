@@ -137,7 +137,7 @@ import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 
 import Link from "next/link";
 import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { SIDEBAR_ITEMS } from "@/app/lib/sidebar";
 import { cn } from "@/app/lib/utils";
@@ -170,9 +170,18 @@ export default function Sidebar({
 }) {
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const pathname = usePathname();
+  const router = useRouter();
 
   const userName = "Amelia Wright";
   const email = "amelia.wright@example.co.uk";
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("currentAuth");
+    localStorage.removeItem("currentAuth");
+    document.cookie = "admin_auth=; path=/; max-age=0; samesite=lax";
+    router.push("/login");
+    router.refresh();
+  };
 
   return (
     <aside
@@ -193,7 +202,14 @@ export default function Sidebar({
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 h-16 border-b border-slate-200">
-        <Logo collapsed={collapsed && !isOverlay} />
+        <div className="flex items-center gap-3 min-w-0">
+          <Logo collapsed={collapsed && !isOverlay} />
+          {!(collapsed && !isOverlay) && (
+            <span className="text-base font-semibold text-slate-900 truncate">
+              Ai4planning
+            </span>
+          )}
+        </div>
 
         {/* Toggle only on desktop */}
         {!isOverlay && (
@@ -228,6 +244,29 @@ export default function Sidebar({
               <div key={item.id}>
                 {!collapsed && <SidebarDivider label="Cases" />}
               </div>
+            );
+          }
+
+          if (item.id === "logout") {
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  if (isOverlay) {
+                    onToggle();
+                  }
+                  handleLogout();
+                }}
+                className={cn(
+                  "w-full relative flex items-center rounded-md transition group",
+                  collapsed ? "justify-center px-3 py-3" : "gap-3 px-4 py-2",
+                  "text-red-600 hover:bg-red-50",
+                )}
+              >
+                <Icon className="text-lg text-red-600" />
+                {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
+              </button>
             );
           }
 

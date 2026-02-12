@@ -2,16 +2,12 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import StatusBadge from "@/components/StatusBadge";
-import ProgressBar from "@/components/ProgressBar";
 import DataTable, { Column } from "@/components/datatable";
 import {
   BarChart3,
   CheckCircle2,
   Clock,
-  Download,
   ExternalLink,
-  FileText,
-  MapPin,
   ShieldCheck,
   Users,
 } from "lucide-react";
@@ -163,7 +159,7 @@ function ProjectsPageContent() {
           <span
             className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
               value === "Closed"
-                ? "bg-emerald-50 text-emerald-700"
+                ? "bg-blue-50 text-blue-700"
                 : "bg-amber-50 text-amber-700"
             }`}
           >
@@ -526,7 +522,7 @@ function ProjectsPageContent() {
                     </div>
                     <div className="w-full h-3 rounded-full overflow-hidden bg-slate-200">
                       <div
-                        className="h-full bg-emerald-500"
+                        className="h-full bg-blue-500"
                         style={{ width: "70%" }}
                       />
                     </div>
@@ -600,7 +596,7 @@ function ProjectsPageContent() {
                   Agent Y Team
                 </p>
                 <div className="mt-3 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-semibold">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold">
                     {selectedProject.agentY
                       ? selectedProject.agentY.charAt(0)
                       : "Y"}
@@ -615,7 +611,7 @@ function ProjectsPageContent() {
                   </div>
                 </div>
                 <div className="mt-4 flex items-center gap-2 text-xs text-slate-600">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <ShieldCheck className="w-4 h-4 text-blue-600" />
                   Cross-team workflow active
                 </div>
               </div>
@@ -773,7 +769,7 @@ function ProjectsPageContent() {
                     : false;
                   const isActive = activeStep === index;
                   const connectorClass = done
-                    ? "bg-emerald-200"
+                    ? "bg-blue-200"
                     : isActive
                       ? "bg-blue-200"
                       : "bg-slate-200";
@@ -794,7 +790,7 @@ function ProjectsPageContent() {
                           }`}
                         >
                           {done ? (
-                            <span className="flex h-6 w-6 items-center justify-center rounded-full text-white text-emerald-600">
+                            <span className="flex h-6 w-6 items-center justify-center rounded-full text-white text-blue-600">
                               <CheckCircle2 className="w-5 h-5" />
                             </span>
                           ) : isActive ? (
@@ -808,7 +804,7 @@ function ProjectsPageContent() {
                             isActive
                               ? "text-blue-600"
                               : done
-                                ? "text-emerald-700"
+                                ? "text-blue-700"
                                 : "text-slate-500"
                           }`}
                         >
@@ -825,9 +821,18 @@ function ProjectsPageContent() {
                 })}
               </div>
             </div>
+          </section>
 
-            {activeInsight && (
-              <div className="mb-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {activeInsight && (
+            <section className="mb-6 border border-slate-200/80 rounded-2xl p-5 bg-slate-50/40">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-semibold text-slate-900">
+               Step Details
+                </p>
+              
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div className="lg:col-span-2 border border-slate-200/80 rounded-2xl p-5 bg-white">
                   <div className="flex items-center justify-between">
                     <div>
@@ -867,22 +872,22 @@ function ProjectsPageContent() {
                     ))}
                   </div>
                 </div>
-                <div className="border border-slate-200/80 rounded-2xl p-5 bg-slate-50">
+                <div className="border border-slate-200/80 rounded-2xl p-5 bg-white">
                   <p className="text-xs font-semibold text-slate-500 uppercase">
                     Internal Notes
                   </p>
                   <div className="mt-3 space-y-2">
                     {activeInsight.notes.map((note) => (
                       <div key={note} className="flex items-start gap-2">
-                        <span className="mt-1 h-2 w-2 rounded-full bg-emerald-500" />
+                        <span className="mt-1 h-2 w-2 rounded-full bg-blue-500" />
                         <p className="text-sm text-slate-700">{note}</p>
                       </div>
                     ))}
                   </div>
                 </div>
               </div>
-            )}
-          </section>
+            </section>
+          )}
         </div>
       ) : (
         <div className="space-y-6">
@@ -907,7 +912,7 @@ function ProjectsPageContent() {
               <p className="text-xs font-semibold text-slate-500 uppercase">
                 Closed Projects
               </p>
-              <p className="text-2xl font-bold text-emerald-600 mt-1">
+              <p className="text-2xl font-bold text-blue-600 mt-1">
                 {projectStats.closedProjects}
               </p>
             </div>

@@ -71,6 +71,12 @@ export default function ClientsPage() {
     router.push(`/admin/clients/${clientId}`);
   };
 
+  const handleFollowUp = (clientId: string) => {
+    router.push(`/admin/clients/${clientId}/follow-up`);
+  };
+
+  const lastClientId = clients[clients.length - 1]?.id;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -247,16 +253,25 @@ export default function ClientsPage() {
               label: 'View Details',
               render: (_value, row) => {
                 const project = getClientProject(row.id);
+                const isLastRow = row.id === lastClientId;
                 return (
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (isLastRow) {
+                        handleFollowUp(row.id);
+                        return;
+                      }
                       handleViewProject(row.id);
                     }}
-                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg text-white transition-colors ${
+                      isLastRow
+                        ? 'bg-amber-600 hover:bg-amber-700'
+                        : 'bg-blue-600 hover:bg-blue-700'
+                    }`}
                   >
-                    {project ? 'View Project' : 'View Details'}
+                    {isLastRow ? 'Follow Up' : project ? 'View Project' : 'View Details'}
                   </button>
                 );
               },
