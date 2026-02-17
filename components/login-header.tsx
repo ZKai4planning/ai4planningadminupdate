@@ -38,7 +38,7 @@ export function LoginHeader() {
 
         {/* Right */}
         <a
-          href="/login"
+          href="/"
           className="text-[10px] text-white font-bold text-primary uppercase tracking-widest"
         >
           Login

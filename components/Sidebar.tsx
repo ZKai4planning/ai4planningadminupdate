@@ -46,7 +46,7 @@ export default function Sidebar({
     sessionStorage.removeItem("currentAuth");
     localStorage.removeItem("currentAuth");
     document.cookie = "admin_auth=; path=/; max-age=0; samesite=lax";
-    router.push("/login");
+    router.push("/");
     router.refresh();
   };
 
