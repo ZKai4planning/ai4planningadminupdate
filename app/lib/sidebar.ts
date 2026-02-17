@@ -1,14 +1,10 @@
 import {
   FiHome,
   FiUser,
-  FiSettings,
   FiLogOut,
   FiLayers,
-  FiFileText,
   FiCheckSquare,
-  FiClock,
-  FiGrid,
-  FiBarChart2,
+  FiDollarSign,
 } from "react-icons/fi"
 import type { IconType } from "react-icons"
  
@@ -53,6 +49,18 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
     icon: FiLayers,   
     href: "/admin/projects",
 },
+// {
+//     id: "revenue-overall",
+//     label: "Revenue Overall",
+//     icon: FiDollarSign,   
+//     href: "/admin/revenue",
+// },
+// {
+//     id: "revenue-project",
+//     label: "Revenue Project",
+//     icon: FiDollarSign,   
+//     href: "/admin/payments",
+// },
 
  
   {

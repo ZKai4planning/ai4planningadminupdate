@@ -33,7 +33,7 @@ const roadmapTracks: RoadmapTrack[] = [
       "Final documents received",
       "Client document review",
       "Remaining 30% received",
-      "Submitted to council",
+      "Council Submission",
     ],
   },
   {

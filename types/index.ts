@@ -73,11 +73,14 @@ export interface Document {
 export interface Project {
   id: string;
   id2?: string; // For India projects, optional field
+  serviceId: string; // Added serviceId to link with Service
   clientId: string;
   clientName: string;
   title: string;
   description: string;
   serviceType: 'residential' | 'commercial' | 'extension';
+  selectedService?: string;
+  selectedSubService?: string;
   location: string;
   postcode: string;
   status: 'pending' | 'registered' | 'docs_received' | 'in_review' | 'architect_assigned' | 'measurements_done' | 'drawings_in_progress' | 'drawings_received' | 'submitted_to_council' | 'approved' | 'rejected';
@@ -85,12 +88,45 @@ export interface Project {
   updatedDate: string;
   agentX?: string;
   agentY?: string;
+  agentXAssignedDate?: string;
+  agentYAssignedDate?: string;
+  initialPaymentDate?: string;
   architect?: string;
   progress: number;
   estimatedCompletionDate: string;
   councilReference: string;
   councilName: string;
   documents: Document[];
+  clientQuestionnaire?: ProjectClientQuestionnaire;
+}
+
+export interface ProjectClientQuestionnaire {
+  propertyDetails: {
+    applicantFullName: string;
+    contactEmailOrPhone: string;
+    siteAddress: string;
+    postcode: string;
+    propertyType: string;
+    ownershipStatus: string;
+    conservationOrListed: string;
+    purposeOfDevelopment: string;
+  };
+  dimensions: {
+    existingPropertyWidthM: string;
+    existingPropertyDepthM: string;
+    proposedExtensionDepthM: string;
+    proposedExtensionHeightM: string;
+    externalMaterials: string;
+    briefDescription: string;
+  };
+  constraints: {
+    listedBuilding: string;
+    tpo: string;
+    floodZone: string;
+    vehicleAccess: string;
+    preApplicationAdvice: string;
+    additionalConsentsRequired: string;
+  };
 }
 
 // Payment Types

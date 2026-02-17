@@ -229,6 +229,17 @@
   }
 }
 
+@keyframes fadeInSoft {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.995);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @layer utilities {
   .animate-shimmer {
     animation: shimmer 2s infinite;
@@ -239,6 +250,18 @@
   }
   .animate-fadeIn {
     animation: fadeInUp 280ms ease-out both;
+  }
+  .animate-enter {
+    animation: fadeInSoft 320ms ease-out both;
+  }
+  .hover-lift {
+    transition:
+      transform 180ms ease,
+    
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+  
   }
 }
 

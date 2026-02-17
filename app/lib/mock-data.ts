@@ -174,7 +174,7 @@ export const mockTeamMembers: TeamMember[] = [
 export const mockDocuments: Document[] = [
   {
     id: 'doc001',
-    projectId: 'PROJ-UK-7842',
+    projectId: 'aB3$k!',
     clientId: 'ABC123-089',
     name: 'Planning Application Form',
     type: 'application_form',
@@ -187,7 +187,7 @@ export const mockDocuments: Document[] = [
   },
   {
     id: 'doc002',
-    projectId: 'PROJ-UK-7842',
+    projectId: 'aB3$k!',
     clientId: 'ABC123-089',
     name: 'Existing Floor Plan',
     type: 'floor_plan',
@@ -200,7 +200,7 @@ export const mockDocuments: Document[] = [
   },
   {
     id: 'doc003',
-    projectId: 'PROJ-UK-7843',
+    projectId: 'A1uia-1hY$u',
     clientId: 'cl002',
     name: 'Site Plan',
     type: 'site_plan',
@@ -213,7 +213,7 @@ export const mockDocuments: Document[] = [
   },
   {
     id: 'doc004',
-    projectId: 'PROJ-UK-7843',
+    projectId: 'A1uia-1hY$u',
     clientId: 'cl002',
     name: 'Architect Design v1',
     type: 'design',
@@ -228,13 +228,16 @@ export const mockDocuments: Document[] = [
 
 export const mockProjects: Project[] = [
   {
-    id: 'PROJ-UK-7842',
-    id2: 'PROJ-IND-1234',
+    id: 'aB3$k!',
+    id2: 'Z7@qL2',
     clientId: 'ABC123-089',
     clientName: 'Zafer Khan',
-    title: 'Residential Extension - Brick Lane',
+    title: 'Residental-home owners & landlords',
     description: 'Adding a rear extension to existing residential property',
     serviceType: 'extension',
+    serviceId: 'HSPC000-07',
+    selectedService: 'Residental-home owners & landlords',
+    selectedSubService: 'householder planning consent',
     location: '42 Brick Lane, London',
     postcode: 'E1 6RF',
     status: 'architect_assigned',
@@ -242,6 +245,9 @@ export const mockProjects: Project[] = [
     updatedDate: '2026-01-20',
     agentX: 'James Mitchell',
     agentY: 'Rajesh Patel',
+    agentXAssignedDate: '2025-12-22',
+    agentYAssignedDate: '2025-12-30',
+    initialPaymentDate: '2025-12-15',
     architect: 'David Brown',
     
     progress: 45,
@@ -252,9 +258,38 @@ export const mockProjects: Project[] = [
       mockDocuments[0],
       mockDocuments[1],
     ],
+    clientQuestionnaire: {
+      propertyDetails: {
+        applicantFullName: 'Zafer Khan',
+        contactEmailOrPhone: 'zafer.khan@ai4planning.com / 07768262279',
+        siteAddress: '42 Brick Lane, London',
+        postcode: 'E1 6RF',
+        propertyType: 'Terraced house',
+        ownershipStatus: 'Freehold',
+        conservationOrListed: 'No',
+        purposeOfDevelopment: 'Rear extension',
+      },
+      dimensions: {
+        existingPropertyWidthM: '5.4',
+        existingPropertyDepthM: '11.8',
+        proposedExtensionDepthM: '3.6',
+        proposedExtensionHeightM: '3.2',
+        externalMaterials: 'Match existing',
+        briefDescription:
+          'Single-storey rear extension with open-plan kitchen-dining and rear glazing.',
+      },
+      constraints: {
+        listedBuilding: 'No',
+        tpo: 'Don’t know',
+        floodZone: 'No',
+        vehicleAccess: 'Yes',
+        preApplicationAdvice: 'No',
+        additionalConsentsRequired: 'None',
+      },
+    },
   },
   // {
-  //   id: 'PROJ-UK-7843',
+  //   id: 'A1uia-1hY$u',
   //   clientId: 'cl002',
   //   clientName: 'Sarah Johnson',
   //   title: 'Commercial Office Conversion',
@@ -306,7 +341,7 @@ export const mockPayments: Payment[] = [
     id: 'pay001',
     clientId: 'ABC123-089',
     clientName: 'Zafer Khan',
-    projectId: 'PROJ-UK-7842',
+    projectId: 'aB3$k!',
     amount: 299,
     currency: 'GBP',
     package: 'standard',
@@ -321,7 +356,7 @@ export const mockPayments: Payment[] = [
     id: 'pay002',
     clientId: 'cl002',
     clientName: 'Sarah Johnson',
-    projectId: 'PROJ-UK-7843',
+    projectId: 'A1uia-1hY$u',
     amount: 599,
     currency: 'GBP',
     package: 'premium',
@@ -382,7 +417,7 @@ export const mockPayments: Payment[] = [
 export const mockMessages: Message[] = [
   {
     id: 'msg001',
-    projectId: 'PROJ-UK-7842',
+    projectId: 'aB3$k!',
     from: 'James Mitchell',
     fromId: 'tm001',
     to: 'Rajesh Patel',
@@ -396,7 +431,7 @@ export const mockMessages: Message[] = [
   },
   {
     id: 'msg002',
-    projectId: 'PROJ-UK-7842',
+    projectId: 'aB3$k!',
     from: 'Rajesh Patel',
     fromId: 'tm003',
     to: 'James Mitchell',
@@ -410,7 +445,7 @@ export const mockMessages: Message[] = [
   },
   {
     id: 'msg003',
-    projectId: 'PROJ-UK-7843',
+    projectId: 'A1uia-1hY$u',
     from: 'Rebecca Thompson',
     fromId: 'tm002',
     to: '',
@@ -441,7 +476,7 @@ export const mockCouncilApplications: CouncilApplication[] = [
   },
   {
     id: 'council002',
-    projectId: 'PROJ-UK-7842',
+    projectId: 'aB3$k!',
     clientName: 'Zafer Khan',
     councilRef: 'TOWER/2026/00234',
     council: 'Tower Hamlets Council',

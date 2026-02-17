@@ -120,7 +120,8 @@ export default function DashboardPage() {
 
   // Small PieChart and BarChart components (compact, lightweight SVG)
   const PieChart = ({ data, title }: { data: Array<{ label: string; value: number; color: string }>; title: string }) => {
-    const total = data.reduce((s, i) => s + i.value, 0) || 1;
+    const rawTotal = data.reduce((s, i) => s + i.value, 0);
+    const total = rawTotal || 1;
     let cumulative = 0;
     const slices = data.map(item => {
       const percentage = (item.value / total) * 100;
@@ -135,17 +136,26 @@ export default function DashboardPage() {
         <h3 className="text-sm font-medium text-slate-800 mb-3">{title}</h3>
         <div className="flex items-center gap-4">
           <svg width="96" height="96" viewBox="0 0 120 120" className="flex-shrink-0">
-            {slices.map((s, i) => {
-              const sa = (s.start * Math.PI) / 180;
-              const ea = (s.end * Math.PI) / 180;
-              const x1 = 60 + 36 * Math.cos(sa);
-              const y1 = 60 + 36 * Math.sin(sa);
-              const x2 = 60 + 36 * Math.cos(ea);
-              const y2 = 60 + 36 * Math.sin(ea);
-              const large = s.percentage > 50 ? 1 : 0;
-              const d = `M 60 60 L ${x1} ${y1} A 36 36 0 ${large} 1 ${x2} ${y2} Z`;
-              return <path key={i} d={d} fill={s.color} />;
-            })}
+            {rawTotal === 0 ? (
+              <circle cx="60" cy="60" r="36" fill="#e2e8f0" />
+            ) : (
+              slices
+                .filter((s) => s.percentage > 0)
+                .map((s, i) => {
+                  if (s.percentage >= 100) {
+                    return <circle key={i} cx="60" cy="60" r="36" fill={s.color} />;
+                  }
+                  const sa = (s.start * Math.PI) / 180;
+                  const ea = (s.end * Math.PI) / 180;
+                  const x1 = 60 + 36 * Math.cos(sa);
+                  const y1 = 60 + 36 * Math.sin(sa);
+                  const x2 = 60 + 36 * Math.cos(ea);
+                  const y2 = 60 + 36 * Math.sin(ea);
+                  const large = s.percentage > 50 ? 1 : 0;
+                  const d = `M 60 60 L ${x1} ${y1} A 36 36 0 ${large} 1 ${x2} ${y2} Z`;
+                  return <path key={i} d={d} fill={s.color} />;
+                })
+            )}
           </svg>
           <div className="text-xs text-slate-700 space-y-2">
             {data.map((d, i) => (
