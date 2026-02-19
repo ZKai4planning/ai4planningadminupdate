@@ -5,7 +5,8 @@ import Sidebar from '@/components/Sidebar';
 import HelpWidget from '@/components/bottombar';
 import { DashboardFooter } from '@/components/Footer';
 import { useMediaQuery } from '../lib/hooks/useMediaQuery';
-import { useRouter } from "next/navigation";
+import GlobalCommandPalette from '@/components/admin/GlobalCommandPalette';
+import AdminNotificationCenter from '@/components/admin/AdminNotificationCenter';
 
 
 export default function AdminLayout({
@@ -13,7 +14,6 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const router = useRouter();
   const isLaptopUp = useMediaQuery('(min-width: 1024px)');
   const [collapsed, setCollapsed] = useState(false);
 
@@ -47,6 +47,8 @@ export default function AdminLayout({
 
       {/* Floating Help Widget */}
       <HelpWidget />
+      <GlobalCommandPalette />
+      <AdminNotificationCenter />
     </div>
   );
 }

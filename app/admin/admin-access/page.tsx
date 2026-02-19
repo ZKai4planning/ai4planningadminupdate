@@ -7,13 +7,51 @@ const resultStyles = {
 } as const;
 
 export default function AdminAccessPage() {
+  const roleMatrix = [
+    { role: "admin", view: true, edit: true, export: true, delete: true },
+    { role: "agent_x", view: true, edit: true, export: true, delete: false },
+    { role: "agent_y", view: true, edit: true, export: false, delete: false },
+    { role: "architect", view: true, edit: false, export: false, delete: false },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-slate-900">Admin Access</h1>
         <p className="text-slate-600 mt-2">
-          Track privileged actions and blocked attempts across admin users.
+          Role-based access control and immutable privileged action trail.
         </p>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-200">
+          <p className="font-semibold text-slate-900">Role Permission Matrix</p>
+          <p className="text-xs text-slate-500 mt-1">Current operational policy for sensitive actions.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50">
+              <tr className="text-left text-slate-600">
+                <th className="px-5 py-3 font-semibold">Role</th>
+                <th className="px-5 py-3 font-semibold">View</th>
+                <th className="px-5 py-3 font-semibold">Edit</th>
+                <th className="px-5 py-3 font-semibold">Export</th>
+                <th className="px-5 py-3 font-semibold">Delete</th>
+              </tr>
+            </thead>
+            <tbody>
+              {roleMatrix.map((row) => (
+                <tr key={row.role} className="border-t border-slate-100">
+                  <td className="px-5 py-3 font-semibold text-slate-900">{row.role}</td>
+                  <td className="px-5 py-3">{row.view ? "Yes" : "No"}</td>
+                  <td className="px-5 py-3">{row.edit ? "Yes" : "No"}</td>
+                  <td className="px-5 py-3">{row.export ? "Yes" : "No"}</td>
+                  <td className="px-5 py-3">{row.delete ? "Yes" : "No"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">

@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { useState } from "react"
 import {
-  FiAlertCircle,
   FiBook,
   FiMessageCircle,
   FiShield,
@@ -22,7 +21,7 @@ export default function HelpWidget() {
             {/* Header */}
             <div className="flex items-start justify-between mb-4">
               <div>
-                <p className="text-sm text-gray-400">Superadmin Console</p>
+              
                 <h3 className="text-base font-semibold">Help and feedback</h3>
               </div>
 
@@ -36,13 +35,8 @@ export default function HelpWidget() {
 
             {/* Items */}
             <ul className="space-y-1">
-              <HelpItem
-                icon={<FiAlertCircle />}
-                label="Review system alerts"
-                href="/admin/system-alerts"
-                onClick={() => setOpen(false)}
-              />
-              <HelpItem
+             
+            <HelpItem 
                 icon={<FiShield />}
                 label="Manage admin access"
                 href="/admin/admin-access"

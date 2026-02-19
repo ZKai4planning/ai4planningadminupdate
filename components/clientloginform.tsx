@@ -3,13 +3,17 @@
 import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { Eye, EyeOff } from "lucide-react"
 
 export function ClientLogin() {
   const router = useRouter()
   const [step, setStep] = useState<"REQUEST_OTP" | "VERIFY_OTP">("REQUEST_OTP")
   const [identifier, setIdentifier] = useState("")
+  const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [otp, setOtp] = useState<string[]>(Array(6).fill(""))
   const [resending, setResending] = useState(false)
+  const [otpError, setOtpError] = useState("")
 
   const completeMockLogin = () => {
     const mockAuth = {
@@ -29,15 +33,19 @@ export function ClientLogin() {
 
     if (step === "REQUEST_OTP") {
       console.log("Sending OTP to:", identifier)
+      setOtpError("")
       setStep("VERIFY_OTP")
       return
     }
 
-    if (step === "VERIFY_OTP") {
-      const otpCode = otp.join("")
-      console.log("Verifying OTP:", otpCode)
-      completeMockLogin()
+    const otpCode = otp.join("")
+    if (otpCode.length !== 6) {
+      setOtpError("Please enter the 6-digit OTP.")
+      return
     }
+    setOtpError("")
+    console.log("Verifying OTP:", otpCode)
+    completeMockLogin()
   }
 
   const handleResendOtp = () => {
@@ -53,9 +61,8 @@ export function ClientLogin() {
           Sign In
         </h2>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          {step === "REQUEST_OTP"
-            ? "Enter your email or phone to receive OTP."
-            : `OTP sent to ${identifier}`}
+          {step === "REQUEST_OTP" && "Enter your email and password, then submit to receive OTP."}
+          {step === "VERIFY_OTP" && `OTP sent to ${identifier}`}
         </p>
       </div>
 
@@ -87,29 +94,24 @@ export function ClientLogin() {
               fill="#EA4335"
             />
           </svg>
-
           <span>Continue with Google</span>
         </button>
 
         <div className="flex items-center gap-4">
-          <div className="h-px bg-slate-200 dark:bg-slate-800 flex-1" />
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            OR USE OTP LOGIN
-          </span>
-          <div className="h-px bg-slate-200 dark:bg-slate-800 flex-1" />
+          <hr className="flex-1 border-slate-300 dark:border-slate-700" />
         </div>
 
         <div className="group">
           <label className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 block">
-            Email or Phone
+            Email
           </label>
           <input
-            type="text"
+            type="email"
             required
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
             disabled={step === "VERIFY_OTP"}
-            placeholder="you@example.com "
+            placeholder="you@example.com"
             className={`
               w-full h-14 px-4 rounded-lg
               bg-slate-50 dark:bg-slate-800/50
@@ -121,6 +123,39 @@ export function ClientLogin() {
             `}
           />
         </div>
+
+        {step === "REQUEST_OTP" && (
+          <div className="group">
+            <label className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 block">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter password"
+                className={`
+                  w-full h-14 px-4 pr-12 rounded-lg
+                  bg-slate-50 dark:bg-slate-800/50
+                  border border-slate-200 dark:border-slate-700
+                  text-slate-900 dark:text-white
+                  focus:ring-2 focus:ring-primary focus:border-primary
+                  transition-all
+                `}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+        )}
 
         {step === "VERIFY_OTP" && (
           <div className="group">
@@ -188,7 +223,6 @@ export function ClientLogin() {
                       transition-all
                     "
                   />
-
                   {index < otp.length - 1 && (
                     <span className="mx-1 text-slate-400 font-bold select-none">
                       -
@@ -197,6 +231,9 @@ export function ClientLogin() {
                 </div>
               ))}
             </div>
+            {otpError && (
+              <p className="mt-2 text-xs font-medium text-red-600">{otpError}</p>
+            )}
           </div>
         )}
 
@@ -208,7 +245,7 @@ export function ClientLogin() {
             rotate-[-3deg] hover:rotate-0
           "
         >
-          {step === "REQUEST_OTP" ? "Send OTP" : "Sign In"}
+          {step === "REQUEST_OTP" ? "Submit" : "Sign In"}
         </button>
       </form>
     </div>

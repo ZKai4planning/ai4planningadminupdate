@@ -1,409 +1,329 @@
-'use client';
 
+import { TrendingUp, Users, FileText, DollarSign, Activity, ArrowUpRight, CheckCircle, Clock, AlertCircle, Calendar, Target, Zap } from 'lucide-react';
 
-import { useState } from 'react';
-import { 
-  TrendingUp, 
-  Users, 
-  FileText, 
-  DollarSign, 
-  Clock,
-  Activity,
-  Calendar,
-  Zap,
-  ArrowUpRight,
-  Target,
-} from 'lucide-react';
-import {
-  mockDashboardStats,
-  mockProjects,
-  mockPayments,
-  mockMessages,
-  mockClients,
-  mockCouncilApplications,
-} from '@/app/lib/mock-data';
-
-
-export default function DashboardPage() {
-  
-  const stats = mockDashboardStats;
-  const recentProjects = mockProjects.slice(0, 5);
-  const recentPayments = mockPayments.slice(0, 5);
-  const unreadMessages = mockMessages.filter(m => !m.read);
-
-  // Calculate analytics
-  const projectsByStatus = {
-    pending: mockProjects.filter(p => p.status === 'pending').length,
-    inReview: mockProjects.filter(p => p.status === 'in_review').length,
-    docsReceived: mockProjects.filter(p => p.status === 'docs_received').length,
-    inProgress: mockProjects.filter(p => ['architect_assigned', 'measurements_done', 'drawings_in_progress', 'drawings_received'].includes(p.status)).length,
-    submitted: mockProjects.filter(p => p.status === 'submitted_to_council').length,
-    approved: mockProjects.filter(p => p.status === 'approved').length,
-  };
-
-  const paymentsByStatus = {
-    completed: mockPayments.filter(p => p.status === 'completed').length,
-    pending: mockPayments.filter(p => p.status === 'pending').length,
-    failed: mockPayments.filter(p => p.status === 'failed').length,
-    refunded: mockPayments.filter(p => p.status === 'refunded').length,
-  };
-
-  const clientsByStatus = {
-    registered: mockClients.filter(p => p.status === 'registered').length,
-    docsUploaded: mockClients.filter(p => p.status === 'docs_uploaded').length,
-    reviewed: mockClients.filter(p => p.status === 'reviewed').length,
-    approved: mockClients.filter(p => p.status === 'approved').length,
-  };
-
-  const councilByStatus = {
-    draft: mockCouncilApplications.filter(a => a.status === 'draft').length,
-    submitted: mockCouncilApplications.filter(a => a.status === 'submitted').length,
-    underReview: mockCouncilApplications.filter(a => a.status === 'under_review').length,
-    approved: mockCouncilApplications.filter(a => a.status === 'approved').length,
-  };
-
-  const avgProjectProgress = Math.round(
-    mockProjects.reduce((sum, p) => sum + p.progress, 0) / mockProjects.length
-  );
-
-  const averagePaymentAmount = Math.round(
-    mockPayments.reduce((sum, p) => sum + p.amount, 0) / mockPayments.length
-  );
-
-  const this30Days = mockProjects.filter(p => {
-    const createdDate = new Date(p.createdDate);
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    return createdDate >= thirtyDaysAgo;
-  }).length;
-
-  // Helper: last N months labels
-  const getLastNMonths = (n: number) => {
-    const months: string[] = [];
-    const now = new Date();
-    for (let i = n - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push(d.toLocaleString('default', { month: 'short', year: 'numeric' }));
-    }
-    return months;
-  };
-
-  const last6 = getLastNMonths(6);
-
-  // Revenue by month (last 6 months)
-  const paymentsByMonth = last6.map(label => {
-    const [monthName, year] = label.split(' ');
-    const monthIndex = new Date(`${monthName} 1, ${year}`).getMonth();
-    const yearNum = parseInt(year, 10);
-    const total = mockPayments
-      .filter(p => {
-        const d = new Date(p.paymentDate);
-        return d.getFullYear() === yearNum && d.getMonth() === monthIndex;
-      })
-      .reduce((sum, p) => sum + p.amount, 0);
-    return { label, value: total };
+const PieChart = ({ data, title }: { data: Array<{ label: string; value: number; color: string }>; title: string }) => {
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  let cumulativePercentage = 0;
+  const slices = data.map((item) => {
+    const percentage = (item.value / total) * 100;
+    const startAngle = (cumulativePercentage / 100) * 360;
+    const endAngle = ((cumulativePercentage + percentage) / 100) * 360;
+    cumulativePercentage += percentage;
+    return { ...item, percentage, startAngle, endAngle };
   });
 
-  // Projects created by month (last 6 months)
-  const projectsByMonth = last6.map(label => {
-    const [monthName, year] = label.split(' ');
-    const monthIndex = new Date(`${monthName} 1, ${year}`).getMonth();
-    const yearNum = parseInt(year, 10);
-    const count = mockProjects.filter(p => {
-      const d = new Date(p.createdDate);
-      return d.getFullYear() === yearNum && d.getMonth() === monthIndex;
-    }).length;
-    return { label, value: count };
-  });
-
-  const [showTrends, setShowTrends] = useState(false);
-
-  // Small PieChart and BarChart components (compact, lightweight SVG)
-  const PieChart = ({ data, title }: { data: Array<{ label: string; value: number; color: string }>; title: string }) => {
-    const rawTotal = data.reduce((s, i) => s + i.value, 0);
-    const total = rawTotal || 1;
-    let cumulative = 0;
-    const slices = data.map(item => {
-      const percentage = (item.value / total) * 100;
-      const start = (cumulative / 100) * 360;
-      cumulative += percentage;
-      const end = (cumulative / 100) * 360;
-      return { ...item, percentage, start, end };
-    });
-
-    return (
-      <div className="bg-white rounded-xl p-4 border border-slate-200">
-        <h3 className="text-sm font-medium text-slate-800 mb-3">{title}</h3>
-        <div className="flex items-center gap-4">
-          <svg width="96" height="96" viewBox="0 0 120 120" className="flex-shrink-0">
-            {rawTotal === 0 ? (
-              <circle cx="60" cy="60" r="36" fill="#e2e8f0" />
-            ) : (
-              slices
-                .filter((s) => s.percentage > 0)
-                .map((s, i) => {
-                  if (s.percentage >= 100) {
-                    return <circle key={i} cx="60" cy="60" r="36" fill={s.color} />;
-                  }
-                  const sa = (s.start * Math.PI) / 180;
-                  const ea = (s.end * Math.PI) / 180;
-                  const x1 = 60 + 36 * Math.cos(sa);
-                  const y1 = 60 + 36 * Math.sin(sa);
-                  const x2 = 60 + 36 * Math.cos(ea);
-                  const y2 = 60 + 36 * Math.sin(ea);
-                  const large = s.percentage > 50 ? 1 : 0;
-                  const d = `M 60 60 L ${x1} ${y1} A 36 36 0 ${large} 1 ${x2} ${y2} Z`;
-                  return <path key={i} d={d} fill={s.color} />;
-                })
-            )}
-          </svg>
-          <div className="text-xs text-slate-700 space-y-2">
-            {data.map((d, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
-                <div className="truncate w-36">{d.label}</div>
-                {/* <div className="font-medium text-slate-900">{d.value}</div> */}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const BarChart = ({ data, title, height = 140 }: { data: Array<{ label: string; value: number }>; title: string; height?: number }) => {
-    const max = Math.max(...data.map(d => d.value), 1);
-    const barH = height - 40;
-    return (
-      <div className="bg-white rounded-xl p-4 border border-slate-200">
-        <h3 className="text-sm font-medium text-slate-800 mb-3">{title}</h3>
-        <div className="flex items-end gap-2" style={{ height: barH }}>
-          {data.map((d, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center">
-              <div className="w-full rounded-t bg-gradient-to-t from-blue-500 to-blue-400" style={{ height: `${(d.value / max) * barH}px` }} title={`${d.label}: ${d.value}`} />
-              <div className="text-xs text-slate-500 mt-2 truncate w-full text-center">{d.label}</div>
+  return (
+    <div className="bg-white rounded-xl p-6 border border-slate-200">
+      <h3 className="text-sm font-medium text-slate-800 mb-4">{title}</h3>
+      <div className="flex items-center justify-between">
+        <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
+          {slices.map((slice, idx) => {
+            const startRad = (slice.startAngle * Math.PI) / 180;
+            const endRad = (slice.endAngle * Math.PI) / 180;
+            const x1 = 60 + 45 * Math.cos(startRad);
+            const y1 = 60 + 45 * Math.sin(startRad);
+            const x2 = 60 + 45 * Math.cos(endRad);
+            const y2 = 60 + 45 * Math.sin(endRad);
+            const largeArc = slice.percentage > 50 ? 1 : 0;
+            const pathData = `M 60 60 L ${x1} ${y1} A 45 45 0 ${largeArc} 1 ${x2} ${y2} Z`;
+            return <path key={idx} d={pathData} fill={slice.color} className="transition-opacity hover:opacity-80" />;
+          })}
+        </svg>
+        <div className="ml-4 space-y-2">
+          {data.map((item, idx) => (
+            <div key={idx} className="flex items-center space-x-2">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+              <span className="text-xs text-slate-600">{item.label}</span>
+              <span className="text-xs font-medium text-slate-800">{item.value}</span>
             </div>
           ))}
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
-  // Build compact arrays for small charts
-  const projectStatus = [
-    { label: 'Pending', value: projectsByStatus.pending, color: '#f59e0b' },
-    { label: 'In Review', value: projectsByStatus.inReview, color: '#eab308' },
-    { label: 'In Progress', value: projectsByStatus.inProgress, color: '#3b82f6' },
-    { label: 'Approved', value: projectsByStatus.approved, color: '#10b981' },
-  ];
-
-  const paymentStatusArr = [
-    { label: 'Completed', value: paymentsByStatus.completed, color: '#10b981' },
-    { label: 'Pending', value: paymentsByStatus.pending, color: '#f59e0b' },
-    { label: 'Failed', value: paymentsByStatus.failed, color: '#ef4444' },
-  ];
-
-  const revenue = paymentsByMonth.map(p => ({ label: p.label.split(' ')[0], value: p.value }));
-  const projectsMonthly = projectsByMonth.map(p => ({ label: p.label.split(' ')[0], value: p.value }));
-
-  // derive simple upcoming deadlines from nearest estimated completion
-  const upcomingDeadlines = mockProjects
-    .map(p => ({ id: p.id, title: p.title, due: new Date(p.estimatedCompletionDate) }))
-    .sort((a, b) => +a.due - +b.due)
-    .slice(0, 3)
-    .map(d => {
-      const daysLeft = Math.max(0, Math.ceil((+d.due - +new Date()) / (1000 * 60 * 60 * 24)));
-      return { ...d, daysLeft, priority: daysLeft <= 3 ? 'high' : daysLeft <= 10 ? 'medium' : 'low' };
-    });
-
-  const recentActivity = mockMessages.slice(0, 4).map(m => ({ id: m.id, title: m.subject, client: m.from, time: 'recent', icon: Clock, color: 'text-slate-600' }));
+const BarChart = ({ data, title, height = 200 }: { data: Array<{ label: string; value: number }>; title: string; height?: number }) => {
+  const max = Math.max(...data.map(d => d.value));
+  const barHeight = height - 60;
 
   return (
-    <div className="max-w-8xl mx-auto px-6 py-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-semibold text-slate-800">Dashboard</h1>
-        <p className="text-sm text-slate-500">Overview — smart, compact and actionable</p>
+    <div className="bg-white rounded-xl p-6 border border-slate-200">
+      <h3 className="text-sm font-medium text-slate-800 mb-4">{title}</h3>
+      <div className="flex items-end justify-between gap-2" style={{ height: barHeight }}>
+        {data.map((item, idx) => (
+          <div key={idx} className="flex-1 flex flex-col items-center">
+            <div className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t transition-all hover:shadow-lg"
+              style={{ height: `${(item.value / max) * barHeight}px`, cursor: 'pointer' }}
+              title={`${item.label}: ${item.value}`}
+            />
+            <span className="text-xs text-slate-600 mt-2 text-center truncate w-full">{item.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default function Dashboard() {
+  const stats = [
+    { label: 'Total Revenue', value: '£124,500', change: '+12.5%', icon: DollarSign, color: 'from-blue-50 to-transparent', iconColor: 'text-blue-600' },
+    { label: 'Active Projects', value: '28', change: '+8', icon: FileText, color: 'from-emerald-50 to-transparent', iconColor: 'text-emerald-600' },
+    { label: 'Total Clients', value: '156', change: '+23', icon: Users, color: 'from-amber-50 to-transparent', iconColor: 'text-amber-600' },
+    { label: 'Completion Rate', value: '94%', change: '+2.3%', icon: Activity, color: 'from-rose-50 to-transparent', iconColor: 'text-rose-600' },
+  ];
+
+  const projectStatus = [
+    { label: 'In Progress', value: 18, color: '#3b82f6' },
+    { label: 'Pending Review', value: 12, color: '#f59e0b' },
+    { label: 'Completed', value: 84, color: '#10b981' },
+    { label: 'On Hold', value: 5, color: '#ef4444' },
+  ];
+
+  const paymentStatus = [
+    { label: 'Completed', value: 142, color: '#10b981' },
+    { label: 'Pending', value: 28, color: '#f59e0b' },
+    { label: 'Failed', value: 4, color: '#ef4444' },
+  ];
+
+  const revenueByMonth = [
+    { label: 'Jan', value: 18 },
+    { label: 'Feb', value: 24 },
+    { label: 'Mar', value: 31 },
+    { label: 'Apr', value: 28 },
+    { label: 'May', value: 35 },
+    { label: 'Jun', value: 42 },
+  ];
+
+  const projectsByMonth = [
+    { label: 'Jan', value: 8 },
+    { label: 'Feb', value: 12 },
+    { label: 'Mar', value: 15 },
+    { label: 'Apr', value: 14 },
+    { label: 'May', value: 18 },
+    { label: 'Jun', value: 16 },
+  ];
+
+  const recentProjects = [
+    { id: 1, title: 'Modern Office Complex', client: 'Tech Corp Ltd', progress: 78, status: 'in_progress', dueDate: '15 Mar 2024' },
+    { id: 2, title: 'Residential Building', client: 'Urban Homes', progress: 45, status: 'in_progress', dueDate: '22 Apr 2024' },
+    { id: 3, title: 'Retail Space', client: 'Commerce Inc', progress: 92, status: 'in_review', dueDate: '08 Mar 2024' },
+    { id: 4, title: 'Community Center', client: 'Local Council', progress: 60, status: 'in_progress', dueDate: '30 May 2024' },
+  ];
+
+  const upcomingDeadlines = [
+    { id: 1, title: 'Submit Plans - Retail Space', daysLeft: 2, priority: 'high' },
+    { id: 2, title: 'Client Review - Office Complex', daysLeft: 5, priority: 'medium' },
+    { id: 3, title: 'Final Approval - Residential', daysLeft: 12, priority: 'low' },
+  ];
+
+  const recentActivity = [
+    { id: 1, title: 'Planning Application Approved', client: 'Sarah Johnson', time: '2 hours ago', icon: CheckCircle, color: 'text-emerald-600' },
+    { id: 2, title: 'New Project Started', client: 'Michael Brown', time: '5 hours ago', icon: FileText, color: 'text-blue-600' },
+    { id: 3, title: 'Payment Received', client: 'Emma Wilson', time: '1 day ago', icon: DollarSign, color: 'text-emerald-600' },
+    { id: 4, title: 'Documents Pending', client: 'James Davis', time: '2 days ago', icon: Clock, color: 'text-amber-600' },
+  ];
+
+  const statusColors = {
+    in_progress: 'bg-blue-50 text-blue-700 border-blue-200',
+    in_review: 'bg-amber-50 text-amber-700 border-amber-200',
+    completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-6 py-12">
+      <div className="mb-12">
+        <h1 className="text-3xl font-light text-slate-800 mb-2">Dashboard</h1>
+        <p className="text-slate-500 text-sm">Welcome back, here's your overview</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-xl p-4 border border-slate-200">
-          <div className="flex items-start justify-between mb-2">
-            <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
-              <FileText className="w-5 h-5 text-blue-600" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        {stats.map((stat, index) => {
+          const Icon = stat.icon;
+          return (
+            <div
+              key={index}
+              className={`bg-gradient-to-br ${stat.color} rounded-xl p-6 border border-slate-200 hover:border-slate-300 transition-all duration-200 hover:shadow-sm`}
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
+                  <Icon className={`w-5 h-5 ${stat.iconColor}`} />
+                </div>
+                <span className="text-xs font-medium text-emerald-600 bg-emerald-100 px-2 py-1 rounded-full">
+                  {stat.change}
+                </span>
+              </div>
+              <div className="space-y-1">
+                <p className="text-2xl font-semibold text-slate-800">{stat.value}</p>
+                <p className="text-sm text-slate-500">{stat.label}</p>
+              </div>
             </div>
-            <div className="text-xs text-slate-500">+{projectsByMonth.reduce((a,b)=>a+b.value,0)} this 6m</div>
-          </div>
-          <div className="text-lg font-bold text-slate-900">{stats.totalProjects}</div>
-          <div className="text-xs text-slate-500">Projects</div>
-        </div>
+          );
+        })}
+      </div>
 
-        <div className="bg-white rounded-xl p-4 border border-slate-200">
-          <div className="flex items-start justify-between mb-2">
-            <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center">
-              <Activity className="w-5 h-5 text-emerald-600" />
-            </div>
-            <div className="text-xs text-slate-500">Active</div>
-          </div>
-          <div className="text-lg font-bold text-slate-900">{stats.activeProjects}</div>
-          <div className="text-xs text-slate-500">Active projects</div>
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <PieChart data={projectStatus} title="Project Status Breakdown" />
+        <PieChart data={paymentStatus} title="Payment Status" />
 
-        <div className="bg-white rounded-xl p-4 border border-slate-200">
-          <div className="flex items-start justify-between mb-2">
-            <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center">
-              <Users className="w-5 h-5 text-amber-600" />
+        <div className="space-y-6">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-700 rounded-xl p-6 text-white">
+            <div className="flex items-start justify-between mb-4">
+              <TrendingUp className="w-8 h-8 text-emerald-400" />
+              <ArrowUpRight className="w-5 h-5 text-emerald-400" />
             </div>
-            <div className="text-xs text-slate-500">Clients</div>
+            <p className="text-3xl font-semibold mb-2">£24,800</p>
+            <p className="text-slate-300 text-sm mb-4">This Month</p>
+            <div className="pt-4 border-t border-slate-600">
+              <p className="text-xs text-slate-400">+18% from last month</p>
+            </div>
           </div>
-          <div className="text-lg font-bold text-slate-900">{stats.totalClients}</div>
-          <div className="text-xs text-slate-500">Active clients</div>
-        </div>
 
-        <div className="bg-white rounded-xl p-4 border border-slate-200">
-          <div className="flex items-start justify-between mb-2">
-            <div className="w-9 h-9 rounded-lg bg-rose-50 flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-rose-600" />
+          <div className="bg-white rounded-xl p-6 border border-slate-200">
+            <h3 className="text-sm font-medium text-slate-800 mb-4">Performance</h3>
+            <div className="space-y-3">
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-xs text-slate-600">Client Satisfaction</span>
+                  <span className="text-xs font-medium text-slate-800">98%</span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-2">
+                  <div className="bg-emerald-500 h-2 rounded-full" style={{ width: '98%' }} />
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-xs text-slate-600">On-time Delivery</span>
+                  <span className="text-xs font-medium text-slate-800">92%</span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-2">
+                  <div className="bg-blue-500 h-2 rounded-full" style={{ width: '92%' }} />
+                </div>
+              </div>
             </div>
-            <div className="text-xs text-slate-500">Revenue</div>
           </div>
-          <div className="text-lg font-bold text-slate-900">£{stats.totalRevenue.toLocaleString()}</div>
-          <div className="text-xs text-slate-500">Total revenue</div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
-        <PieChart data={projectStatus} title="Project Status" />
-        <PieChart data={paymentStatusArr} title="Payment Status" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <BarChart data={revenueByMonth} title="Revenue Trend (Last 6 Months)" />
+        <BarChart data={projectsByMonth} title="Projects Created (Last 6 Months)" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div className="bg-white rounded-xl p-6 border border-slate-200">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-medium text-slate-800 flex items-center gap-2">
+              <Target className="w-5 h-5 text-blue-600" />
+              Recent Projects
+            </h2>
+            <button className="text-sm text-slate-500 hover:text-slate-700 transition-colors">
+              View all
+            </button>
+          </div>
+          <div className="space-y-4">
+            {recentProjects.map((project) => (
+              <div key={project.id} className="p-4 rounded-lg border border-slate-100 hover:border-slate-200 transition-colors">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{project.title}</p>
+                    <p className="text-xs text-slate-500">{project.client}</p>
+                  </div>
+                  <span className={`text-xs px-2 py-1 rounded-full border ${statusColors[project.status as keyof typeof statusColors]}`}>
+                    {project.status === 'in_progress' ? 'In Progress' : project.status === 'in_review' ? 'In Review' : 'Completed'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="w-full mr-3 bg-slate-200 rounded-full h-2">
+                    <div className="bg-gradient-to-r from-blue-500 to-blue-400 h-2 rounded-full" style={{ width: `${project.progress}%` }} />
+                  </div>
+                  <span className="text-xs font-medium text-slate-700">{project.progress}%</span>
+                </div>
+                <p className="text-xs text-slate-500">Due: {project.dueDate}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl p-6 border border-slate-200">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-medium text-slate-800 flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-amber-600" />
+              Upcoming Deadlines
+            </h2>
+            <button className="text-sm text-slate-500 hover:text-slate-700 transition-colors">
+              View all
+            </button>
+          </div>
+          <div className="space-y-3">
+            {upcomingDeadlines.map((deadline) => (
+              <div key={deadline.id} className={`p-4 rounded-lg border-l-4 ${
+                deadline.priority === 'high'
+                  ? 'border-l-red-500 bg-red-50'
+                  : deadline.priority === 'medium'
+                  ? 'border-l-amber-500 bg-amber-50'
+                  : 'border-l-emerald-500 bg-emerald-50'
+              }`}>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{deadline.title}</p>
+                    <p className={`text-xs mt-1 ${
+                      deadline.priority === 'high'
+                        ? 'text-red-600'
+                        : deadline.priority === 'medium'
+                        ? 'text-amber-600'
+                        : 'text-emerald-600'
+                    }`}>
+                      {deadline.daysLeft === 0 ? 'Due today' : `${deadline.daysLeft} days left`}
+                    </p>
+                  </div>
+                  <AlertCircle className={`w-4 h-4 ${
+                    deadline.priority === 'high'
+                      ? 'text-red-600'
+                      : deadline.priority === 'medium'
+                      ? 'text-amber-600'
+                      : 'text-emerald-600'
+                  }`} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl p-6 border border-slate-200">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-medium text-slate-800 flex items-center gap-2">
+            <Zap className="w-5 h-5 text-blue-600" />
+            Recent Activity
+          </h2>
+          <button className="text-sm text-slate-500 hover:text-slate-700 transition-colors">
+            View all
+          </button>
+        </div>
         <div className="space-y-4">
-          <div className="bg-gradient-to-br from-slate-800 to-slate-700 rounded-xl p-4 text-white">
-            <div className="flex items-center justify-between mb-2">
-              <TrendingUp className="w-6 h-6 text-emerald-300" />
-              <ArrowUpRight className="w-4 h-4 text-emerald-300" />
-            </div>
-            <div className="text-2xl font-semibold">£{paymentsByMonth.reduce((s,p)=>s+p.value,0)}</div>
-            <div className="text-xs text-slate-200">This period</div>
-          </div>
-
-          <div className="bg-white rounded-xl p-4 border border-slate-200">
-            <h3 className="text-sm font-medium text-slate-800 mb-3">Performance</h3>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between"><div className="text-slate-600">Avg progress</div><div className="font-medium">{avgProjectProgress}%</div></div>
-              <div className="flex justify-between"><div className="text-slate-600">Avg payment</div><div className="font-medium">£{averagePaymentAmount}</div></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <BarChart data={revenue} title="Revenue (6m)" />
-        <BarChart data={projectsMonthly} title="Projects Created (6m)" />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center">
-                <Target className="w-4 h-4 text-white" />
-              </div>
-              <h3 className="text-sm font-bold text-blue-900">Recent Projects</h3>
-            </div>
-            <a href="/admin/projects" className="text-xs text-blue-700 hover:text-blue-900 font-semibold">View all</a>
-          </div>
-          <div className="space-y-2">
-            {recentProjects.map(p => (
-              <div key={p.id} className="bg-white rounded-lg p-3 hover:shadow-md transition-shadow">
-                <div className="flex justify-between items-center mb-2">
-                  <div className="truncate flex-1">
-                    <div className="font-semibold text-slate-900 text-sm">{p.title}</div>
-                    <div className="text-xs text-slate-500">{p.clientName}</div>
-                  </div>
-                  <div className="text-xs font-bold text-blue-600 ml-2">{p.progress}%</div>
-                </div>
-                <div className="w-full h-1.5 bg-blue-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-blue-500 to-blue-600" style={{ width: `${p.progress}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-amber-300 flex items-center justify-center">
-                <Calendar className="w-4 h-4 text-white" />
-              </div>
-              <h3 className="text-sm font-bold text-amber-900">Upcoming Deadlines</h3>
-            </div>
-            <a href="#" className="text-xs text-amber-700 hover:text-amber-900 font-semibold">View all</a>
-          </div>
-          <div className="space-y-2">
-            {upcomingDeadlines.map(d => (
-              <div key={d.id} className={`p-3 rounded-lg border-l-4 ${
-                d.priority === 'high' 
-                  ? 'bg-red-50 border-l-red-500 hover:bg-red-100' 
-                  : d.priority === 'medium' 
-                  ? 'bg-amber-50 border-l-amber-500 hover:bg-amber-100' 
-                  : 'bg-emerald-50 border-l-emerald-500 hover:bg-emerald-100'
-              } transition-colors cursor-pointer`}>
-                <div className="flex justify-between items-start">
-                  <div className="truncate flex-1">
-                    <div className="font-semibold text-slate-900 text-sm">{d.title}</div>
-                    <div className={`text-xs font-medium mt-1 ${
-                      d.priority === 'high' ? 'text-red-700' : d.priority === 'medium' ? 'text-amber-700' : 'text-emerald-700'
-                    }`}>Due in {d.daysLeft} day{d.daysLeft !== 1 ? 's' : ''}</div>
-                  </div>
-                  <div className={`ml-2 px-2 py-1 rounded text-xs font-bold ${
-                    d.priority === 'high' ? 'bg-red-200 text-red-800' : d.priority === 'medium' ? 'bg-amber-200 text-amber-800' : 'bg-emerald-200 text-emerald-800'
-                  }`}>{d.priority === 'high' ? '🔴' : d.priority === 'medium' ? '🟡' : '🟢'}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl p-4 border border-slate-700">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center">
-              <Zap className="w-4 h-4 text-white" />
-            </div>
-            <h3 className="text-sm font-bold text-white">Recent Activity</h3>
-          </div>
-          <a href="#" className="text-xs text-blue-400 hover:text-blue-300 font-semibold">View all</a>
-        </div>
-        <div className="space-y-2">
-          {recentActivity.map((a, idx) => {
-            const activityColors = [
-              'from-blue-500 to-blue-600',
-              'from-emerald-500 to-emerald-600',
-              'from-purple-500 to-purple-600',
-              'from-orange-500 to-orange-600',
-            ];
-            const colors = activityColors[idx % activityColors.length];
+          {recentActivity.map((activity) => {
+            const Icon = activity.icon;
             return (
-              <div key={a.id} className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-lg p-3 hover:from-slate-700 hover:to-slate-600 transition-all cursor-pointer border border-slate-600">
-                <div className="flex justify-between items-start gap-3">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${colors} flex items-center justify-center flex-shrink-0`}>
-                      <a.icon className="w-4 h-4 text-white" />
-                    </div>
-                    <div className="truncate min-w-0 flex-1">
-                      <div className="text-sm font-semibold text-white truncate">{a.title}</div>
-                      <div className="text-xs text-slate-400 truncate">{a.client}</div>
-                    </div>
+              <div
+                key={activity.id}
+                className="flex items-center justify-between p-4 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center space-x-4">
+                  <Icon className={`w-5 h-5 ${activity.color}`} />
+                  <div>
+                    <p className="text-sm font-medium text-slate-800 group-hover:text-slate-900">
+                      {activity.title}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">{activity.client}</p>
                   </div>
-                  <div className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0">{a.time}</div>
                 </div>
+                <span className="text-xs text-slate-400">{activity.time}</span>
               </div>
             );
           })}
         </div>
       </div>
-
-
     </div>
   );
 }

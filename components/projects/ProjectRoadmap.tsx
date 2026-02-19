@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { CheckCircle2, Clock } from "lucide-react";
 import EligibilityCheckDetails from "@/components/projects/EligibilityCheckDetails";
 import TaskDetails from "@/components/projects/TaskDetails";
@@ -95,14 +95,9 @@ export default function ProjectRoadmap({
     detail: string;
     status: string;
   } | null>(null);
-
-  useEffect(() => {
-    if (!isCrossTeamCreationStep) {
-      setSelectedSyncTask(null);
-      return;
-    }
-    setSelectedSyncTask((prev) => prev ?? { lane: "x", ...xTrack[0] });
-  }, [isCrossTeamCreationStep]);
+  const resolvedSyncTask = isCrossTeamCreationStep
+    ? selectedSyncTask ?? { lane: "x" as const, ...xTrack[0] }
+    : null;
 
   return (
     <>
@@ -283,8 +278,8 @@ export default function ProjectRoadmap({
                           })
                         }
                         className={`block w-full py-2.5 text-left transition-colors ${
-                          selectedSyncTask?.lane === "x" &&
-                          selectedSyncTask?.title === item.title
+                          resolvedSyncTask?.lane === "x" &&
+                          resolvedSyncTask?.title === item.title
                             ? "bg-blue-50/80"
                             : "hover:bg-slate-50"
                         }`}
@@ -319,8 +314,8 @@ export default function ProjectRoadmap({
                           })
                         }
                         className={`block w-full py-2.5 text-left transition-colors ${
-                          selectedSyncTask?.lane === "y" &&
-                          selectedSyncTask?.title === item.title
+                          resolvedSyncTask?.lane === "y" &&
+                          resolvedSyncTask?.title === item.title
                             ? "bg-blue-50/80"
                             : "hover:bg-slate-50"
                         }`}
@@ -341,7 +336,7 @@ export default function ProjectRoadmap({
                 <TaskDetails
                   project={project}
                   focusStep={activeStepLabel}
-                  focusTask={selectedSyncTask ?? undefined}
+                  focusTask={resolvedSyncTask ?? undefined}
                 />
               </aside>
             </div>

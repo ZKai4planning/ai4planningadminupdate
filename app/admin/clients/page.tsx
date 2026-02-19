@@ -15,6 +15,8 @@ type ClientRow = (typeof mockClients)[0] & {
 export default function ClientsPage() {
   const router = useRouter();
   const [selectedClient, setSelectedClient] = useState<ClientRow | null>(null);
+  const [savedView, setSavedView] = useState<'all' | 'active' | 'inactive' | 'pending-payment'>('all');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [revealedFields, setRevealedFields] = useState<Record<string, { email: boolean; phone: boolean }>>({});
   const [clients, setClients] = useState<ClientRow[]>(
     mockClients.map((client) => {
@@ -26,7 +28,12 @@ export default function ClientsPage() {
       };
     })
   );
-  const filteredClients = useMemo(() => clients, [clients]);
+  const filteredClients = useMemo(() => {
+    if (savedView === 'active') return clients.filter((client) => client.isActive);
+    if (savedView === 'inactive') return clients.filter((client) => !client.isActive);
+    if (savedView === 'pending-payment') return clients.filter((client) => client.paymentStatus === 'pending');
+    return clients;
+  }, [clients, savedView]);
 
   const getClientProjects = (clientId: string) => {
     return mockProjects.filter(p => p.clientId === clientId);
@@ -56,6 +63,27 @@ export default function ClientsPage() {
       prev.map((client) =>
         client.id === id ? { ...client, isActive: !client.isActive } : client
       )
+    );
+  };
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+  };
+
+  const toggleSelectAllFiltered = () => {
+    const filteredIds = filteredClients.map((client) => client.id);
+    const allSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !filteredIds.includes(id)));
+      return;
+    }
+    setSelectedIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
+  };
+
+  const applyBulkStatus = (isActive: boolean) => {
+    if (selectedIds.length === 0) return;
+    setClients((prev) =>
+      prev.map((client) => (selectedIds.includes(client.id) ? { ...client, isActive } : client))
     );
   };
 
@@ -115,6 +143,58 @@ export default function ClientsPage() {
         </div>
       </div>
 
+      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold uppercase text-slate-500">Saved Views</span>
+          {[
+            { id: 'all', label: 'All' },
+            { id: 'active', label: 'Active' },
+            { id: 'inactive', label: 'Inactive' },
+            { id: 'pending-payment', label: 'Pending Payment' },
+          ].map((view) => (
+            <button
+              key={view.id}
+              type="button"
+              onClick={() => setSavedView(view.id as typeof savedView)}
+              className={`px-3 py-1.5 rounded-lg text-xs ${
+                savedView === view.id
+                  ? 'bg-blue-100 text-blue-700 font-semibold'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {view.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleSelectAllFiltered}
+            className="px-3 py-1.5 rounded-lg text-xs bg-slate-100 text-slate-700 hover:bg-slate-200"
+          >
+            {filteredClients.length > 0 && filteredClients.every((client) => selectedIds.includes(client.id))
+              ? 'Clear Filtered Selection'
+              : 'Select Filtered'}
+          </button>
+          <button
+            type="button"
+            onClick={() => applyBulkStatus(true)}
+            disabled={selectedIds.length === 0}
+            className="px-3 py-1.5 rounded-lg text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200 disabled:opacity-50"
+          >
+            Bulk Activate ({selectedIds.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => applyBulkStatus(false)}
+            disabled={selectedIds.length === 0}
+            className="px-3 py-1.5 rounded-lg text-xs bg-amber-100 text-amber-700 hover:bg-amber-200 disabled:opacity-50"
+          >
+            Bulk Deactivate ({selectedIds.length})
+          </button>
+        </div>
+      </div>
+
       {/* Clients Table */}
       <div>
         <DataTable
@@ -133,8 +213,19 @@ export default function ClientsPage() {
               key: 'id',
               label: 'Client ID',
               sortable: true,
-              render: (value) => (
-                <span className="font-medium text-slate-900">{value}</span>
+              render: (value, row) => (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(row.id)}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      toggleSelection(row.id);
+                    }}
+                    aria-label={`Select ${row.name}`}
+                  />
+                  <span className="font-medium text-slate-900">{value}</span>
+                </div>
               ),
             },
             {
@@ -154,7 +245,7 @@ export default function ClientsPage() {
               key: 'name',
               label: 'Name',
               sortable: true,
-              render: (value, row) => (
+              render: (value) => (
                 <div>
                   <p className="font-semibold text-slate-900">{value}</p>
                 

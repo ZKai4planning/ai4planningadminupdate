@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import DataTable, { Column } from "@/components/datatable";
 import { mockClients, mockPayments, mockProjects } from "@/app/lib/mock-data";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import ProjectOverview from "@/components/projects/ProjectOverview";
 import ProjectRoadmap, {
   type RoadmapInsight,
@@ -89,6 +90,7 @@ type ProjectTableRow = {
 
 function ProjectsPageContent() {
   const searchParams = useSearchParams();
+  const referenceNow = new Date("2026-02-19T00:00:00Z").getTime();
   const [searchTerm] = useState("");
   const [filterStatus] = useState("");
   const [selectedProject, setSelectedProject] = useState<
@@ -294,7 +296,7 @@ function ProjectsPageContent() {
       mockClients.find((client) => client.id === selectedProject.clientId) ??
       null
     );
-  }, [selectedProject]);
+  }, [selectedProject, referenceNow]);
 
   const initialPaymentDate = useMemo(() => {
     if (!selectedProject) {
@@ -322,7 +324,7 @@ function ProjectsPageContent() {
     const created = new Date(selectedProject.createdDate);
     const daysOpen = Math.max(
       0,
-      Math.floor((Date.now() - created.getTime()) / (1000 * 60 * 60 * 24)),
+      Math.floor((referenceNow - created.getTime()) / (1000 * 60 * 60 * 24)),
     );
     const completedSteps = getCompletedStepsForProject(selectedProject);
     return {
@@ -340,7 +342,6 @@ function ProjectsPageContent() {
     const agentX = selectedProject.agentX || "Unassigned";
     const agentY = selectedProject.agentY || "Unassigned";
     const architect = selectedProject.architect || "Unassigned";
-    const questionnaire = selectedProject.clientQuestionnaire;
     const normalizedServiceType =
       selectedProject.serviceType.charAt(0).toUpperCase() +
       selectedProject.serviceType.slice(1);
@@ -519,12 +520,14 @@ function ProjectsPageContent() {
       <div className="relative">
         {selectedProject && (
           <>
-            <button
-              onClick={() => setSelectedProject(null)}
-              className="mb-2 inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 hover:bg-blue-100"
-            >
-              ← Back to projects
-            </button>
+            <div className="mb-2 flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setSelectedProject(null)}
+                className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 hover:bg-blue-100"
+              >
+                Back to projects
+              </button>
+            </div>
 
             <div className="rounded-2xl bg-white/90 p-4 ring-1 ring-slate-200/70">
               <div className="flex items-start gap-6">
@@ -591,29 +594,37 @@ function ProjectsPageContent() {
                   : "Roadmap and step-level insights"}
               </span>
             </div>
-            <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
-              <button
-                type="button"
-                onClick={() => setActiveProjectTab("overview")}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  activeProjectTab === "overview"
-                    ? "bg-white text-blue-700 shadow-sm"
-                    : "text-slate-700 hover:bg-slate-200"
-                }`}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveProjectTab("overview")}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    activeProjectTab === "overview"
+                      ? "bg-white text-blue-700 shadow-sm"
+                      : "text-slate-700 hover:bg-slate-200"
+                  }`}
+                >
+                  Project Overview
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveProjectTab("journey")}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    activeProjectTab === "journey"
+                      ? "bg-white text-blue-700 shadow-sm"
+                      : "text-slate-700 hover:bg-slate-200"
+                  }`}
+                >
+                  Client Journey
+                </button>
+              </div>
+              <Link
+                href={`/admin/logs?projectId=${selectedProject.id}`}
+                className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200"
               >
-                Project Overview
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveProjectTab("journey")}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  activeProjectTab === "journey"
-                    ? "bg-white text-blue-700 shadow-sm"
-                    : "text-slate-700 hover:bg-slate-200"
-                }`}
-              >
-                Client Journey
-              </button>
+                Project Logs
+              </Link>
             </div>
           </div>
 
@@ -698,3 +709,4 @@ export default function ProjectsPage() {
     </Suspense>
   );
 }
+

@@ -4,16 +4,17 @@ import {
   FiLogOut,
   FiLayers,
   FiCheckSquare,
-  FiDollarSign,
+  FiMessageSquare,
+  FiCalendar,
 } from "react-icons/fi"
 import type { IconType } from "react-icons"
- 
+
 export type SidebarSubItem = {
   id: string
   label: string
   href: string
 }
- 
+
 export type SidebarItem = {
   id: string
   label: string
@@ -21,7 +22,7 @@ export type SidebarItem = {
   href?: string
   children?: SidebarSubItem[]
 }
- 
+
 export const SIDEBAR_ITEMS: SidebarItem[] = [
   {
     id: "dashboard",
@@ -29,45 +30,39 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
     icon: FiHome,
     href: "/admin",
   },
- 
-{
-  
+  {
+    id: "projects",
+    label: "Projects",
+    icon: FiLayers,
+    href: "/admin/projects",
+  },
+  // {
+  //   id: "messages",
+  //   label: "Chat",
+  //   icon: FiMessageSquare,
+  //   href: "/admin/messages",
+  // },
+  {
+    id: "clients",
+    label: "Clients",
+    icon: FiCheckSquare,
+    href: "/admin/clients",
+  },
+  {
     id: "team",
     label: "Team",
     icon: FiUser,
     href: "/admin/team",
   },
-{
-    id: "clients",
-    label: "Clients",
-    icon: FiCheckSquare,
-    href: "/admin/clients",
-},
-{
-    id: "projects",
-    label: "Projects",
-    icon: FiLayers,   
-    href: "/admin/projects",
-},
-// {
-//     id: "revenue-overall",
-//     label: "Revenue Overall",
-//     icon: FiDollarSign,   
-//     href: "/admin/revenue",
-// },
-// {
-//     id: "revenue-project",
-//     label: "Revenue Project",
-//     icon: FiDollarSign,   
-//     href: "/admin/payments",
-// },
-
- 
+  {
+    id: "calendar",
+    label: "Calendar",
+    icon: FiCalendar,
+    href: "/admin/calendar",
+  },
   {
     id: "logout",
     label: "Logout",
     icon: FiLogOut,
   },
 ]
- 
- 
