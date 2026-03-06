@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "@/app/lib/axiosinstance";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
@@ -32,7 +32,7 @@ const resetPasswordSchema = z
 /* =========================
    COMPONENT
 ========================= */
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const router = useRouter();
   const email = useSearchParams().get("email") || "";
 
@@ -193,5 +193,23 @@ export default function ResetPasswordPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+function ResetPasswordFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-950 px-4">
+      <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 p-8 text-center text-slate-600 dark:text-slate-300">
+        Loading reset password...
+      </div>
+    </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<ResetPasswordFallback />}>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }

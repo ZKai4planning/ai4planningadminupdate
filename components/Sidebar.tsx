@@ -3,11 +3,18 @@
 import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { SIDEBAR_ITEMS } from "@/app/lib/sidebar";
 import { cn } from "@/app/lib/utils";
+import axiosInstance from "@/app/lib/axiosinstance";
+import {
+  readCurrentAuth,
+  resolveAuthEmail,
+  resolveAuthName,
+  resolveAuthUserId,
+} from "@/app/lib/auth-session";
 import { Logo } from "./logo";
 
 /* ---------------- Divider ---------------- */
@@ -39,8 +46,99 @@ export default function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
 
-  const userName = "Amelia Wright";
-  const email = "amelia.wright@example.co.uk";
+  const [userName, setUserName] = useState("Admin User");
+  const [email, setEmail] = useState("");
+  const [profilePicture, setProfilePicture] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadFromCache = () => {
+      if (typeof window === "undefined") return;
+      const cached = localStorage.getItem("adminProfile");
+      if (!cached) return;
+
+      try {
+        const parsed = JSON.parse(cached) as {
+          name?: string;
+          email?: string;
+          profilePicture?: string;
+        };
+        if (!isMounted) return;
+        if (parsed.name) setUserName(parsed.name);
+        if (typeof parsed.email === "string") setEmail(parsed.email);
+        if (typeof parsed.profilePicture === "string") setProfilePicture(parsed.profilePicture);
+      } catch {
+        // Ignore invalid local profile cache
+      }
+    };
+
+    const loadProfile = async () => {
+      const auth = readCurrentAuth();
+      const authName = resolveAuthName(auth);
+      const authEmail = resolveAuthEmail(auth);
+      const userId = resolveAuthUserId(auth);
+
+      if (isMounted) {
+        if (authName) setUserName(authName);
+        if (authEmail) setEmail(authEmail);
+      }
+
+      loadFromCache();
+
+      if (!userId) return;
+
+      try {
+        const response = await axiosInstance.get(`/admin/profile/${userId}`);
+        const data = response?.data?.data ?? response?.data ?? {};
+        if (!isMounted) return;
+
+        const nextName =
+          (typeof data?.name === "string" && data.name) || authName || "Admin User";
+        const nextEmail =
+          (typeof data?.email === "string" && data.email) || authEmail || "";
+        const nextPicture =
+          (typeof data?.profilePicture === "string" && data.profilePicture) || "";
+
+        setUserName(nextName);
+        setEmail(nextEmail);
+        setProfilePicture(nextPicture);
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem(
+            "adminProfile",
+            JSON.stringify({
+              name: nextName,
+              email: nextEmail,
+              phoneNumber:
+                typeof data?.phoneNumber === "string" ? data.phoneNumber : "",
+              profilePicture: nextPicture,
+            }),
+          );
+        }
+      } catch {
+        // Keep sidebar stable if profile API fails.
+      }
+    };
+
+    const onProfileUpdated = () => {
+      loadFromCache();
+    };
+
+    void loadProfile();
+    if (typeof window !== "undefined") {
+      window.addEventListener("admin-profile-updated", onProfileUpdated);
+      window.addEventListener("storage", onProfileUpdated);
+    }
+
+    return () => {
+      isMounted = false;
+      if (typeof window !== "undefined") {
+        window.removeEventListener("admin-profile-updated", onProfileUpdated);
+        window.removeEventListener("storage", onProfileUpdated);
+      }
+    };
+  }, []);
 
   const handleLogout = () => {
     sessionStorage.removeItem("currentAuth");
@@ -229,17 +327,51 @@ export default function Sidebar({
           </button>
         </div> */}
 
-        {!collapsed && (
+        {!collapsed ? (
           <div className="px-4 py-3 border-t border-slate-200">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold text-sm">
-                {userName.charAt(0)}
+            <Link
+              href="/admin/profile"
+              onClick={isOverlay ? onToggle : undefined}
+              className="flex items-center gap-3 rounded-md p-1.5 transition hover:bg-slate-100"
+            >
+              <div className="h-9 w-9 overflow-hidden rounded-full bg-blue-600 text-sm font-semibold text-white flex items-center justify-center">
+                {profilePicture ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={profilePicture}
+                    alt="Profile"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  (userName || "A").charAt(0).toUpperCase()
+                )}
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-medium truncate">{userName}</p>
+                <p className="text-sm font-medium truncate">{userName || "Admin User"}</p>
                 <p className="text-xs text-slate-400 truncate">{email}</p>
               </div>
-            </div>
+            </Link>
+          </div>
+        ) : (
+          <div className="px-3 py-3 border-t border-slate-200">
+            <Link
+              href="/admin/profile"
+              className="flex items-center justify-center rounded-md p-1.5 transition hover:bg-slate-100"
+              title={userName || "Profile"}
+            >
+              <div className="h-9 w-9 overflow-hidden rounded-full bg-blue-600 text-sm font-semibold text-white flex items-center justify-center">
+                {profilePicture ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={profilePicture}
+                    alt="Profile"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  (userName || "A").charAt(0).toUpperCase()
+                )}
+              </div>
+            </Link>
           </div>
         )}
       </div>

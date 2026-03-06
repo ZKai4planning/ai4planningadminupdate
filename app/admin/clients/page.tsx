@@ -1060,35 +1060,35 @@ export default function ClientsPage() {
                 </div>
               ),
             },
-            {
-              key: 'actions',
-              label: 'View Details',
-              render: (_value, row) => {
-                const project = getClientProject(row.id);
-                const isLastRow = row.id === lastClientId;
+            // {
+            //   key: 'actions',
+            //   label: 'View Details',
+            //   render: (_value, row) => {
+            //     const project = getClientProject(row.id);
+            //     const isLastRow = row.id === lastClientId;
 
-                return (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isLastRow) {
-                        handleFollowUp(row.id);
-                        return;
-                      }
-                      handleViewProject(row.id);
-                    }}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg text-white transition-colors ${
-                      isLastRow
-                        ? 'bg-amber-600 hover:bg-amber-700'
-                        : 'bg-blue-600 hover:bg-blue-700'
-                    }`}
-                  >
-                    {isLastRow ? 'Follow Up' : project ? 'View Project' : 'View Details'}
-                  </button>
-                );
-              },
-            },
+            //     return (
+            //       <button
+            //         type="button"
+            //         onClick={(e) => {
+            //           e.stopPropagation();
+            //           if (isLastRow) {
+            //             handleFollowUp(row.id);
+            //             return;
+            //           }
+            //           handleViewProject(row.id);
+            //         }}
+            //         className={`px-3 py-1.5 text-xs font-semibold rounded-lg text-white transition-colors ${
+            //           isLastRow
+            //             ? 'bg-amber-600 hover:bg-amber-700'
+            //             : 'bg-blue-600 hover:bg-blue-700'
+            //         }`}
+            //       >
+            //         {isLastRow ? 'Follow Up' : project ? 'View Project' : 'View Details'}
+            //       </button>
+            //     );
+            //   },
+            // },
             {
               key: 'joinedDate',
               label: 'Joined',

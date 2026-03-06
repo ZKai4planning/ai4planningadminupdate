@@ -81,6 +81,7 @@ export const mockClients: Client[] = [
 export const mockTeamMembers: TeamMember[] = [
   {
     id: 'tm001',
+    userId: 'tm001',
     name: 'James Mitchell',
     email: 'james.mitchell@company.co.uk',
     role: 'agent_x',
@@ -96,6 +97,7 @@ export const mockTeamMembers: TeamMember[] = [
   },
   {
     id: 'tm002',
+    userId: 'tm002',
     name: 'Rebecca Thompson',
     email: 'rebecca.t@company.co.uk',
     role: 'agent_x',
@@ -111,6 +113,7 @@ export const mockTeamMembers: TeamMember[] = [
   },
   {
     id: 'tm003',
+    userId: 'tm003',
     name: 'Rajesh Patel',
     email: 'rajesh.p@company.in',
     role: 'agent_y',
@@ -126,6 +129,7 @@ export const mockTeamMembers: TeamMember[] = [
   },
   {
     id: 'tm004',
+    userId: 'tm004',
     name: 'Priya Singh',
     email: 'priya.singh@company.in',
     role: 'agent_y',
@@ -141,6 +145,7 @@ export const mockTeamMembers: TeamMember[] = [
   },
   {
     id: 'tm005',
+    userId: 'tm005',
     name: 'David Brown',
     email: 'david.b@company.co.uk',
     role: 'architect',
@@ -156,6 +161,7 @@ export const mockTeamMembers: TeamMember[] = [
   },
   {
     id: 'tm006',
+    userId: 'tm006',
     name: 'Alice Grant',
     email: 'alice.grant@company.co.uk',
     role: 'admin',
