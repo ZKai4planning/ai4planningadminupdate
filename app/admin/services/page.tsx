@@ -164,8 +164,65 @@ export default function ServicesPage() {
             <p className="text-slate-500">No services found.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <>
+            <div className="md:hidden space-y-3 p-4">
+              {filteredServices.map((service) => (
+                <div key={service.id} className="rounded-lg border border-slate-200 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{service.name}</p>
+                      <p className="text-xs text-slate-500 line-clamp-2">{service.description}</p>
+                    </div>
+                    <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${getCategoryBadge(service.category)}`}>
+                      {service.category}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <span className="text-slate-500">Price</span>
+                    <span className="font-semibold text-emerald-600">£{service.price.toLocaleString()}</span>
+                    <span className="text-slate-500">Duration</span>
+                    <span className="text-slate-700">{service.duration}</span>
+                    <span className="text-slate-500">Sub-services</span>
+                    <span className="text-slate-700">{service.subServices.length}</span>
+                    <span className="text-slate-500">Status</span>
+                    <span className={`text-xs font-semibold ${service.isActive ? 'text-emerald-700' : 'text-slate-600'}`}>
+                      {service.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => toggleExpand(service.id)}
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700"
+                  >
+                    {expandedServices.includes(service.id) ? 'Hide Details' : 'View Details'}
+                  </button>
+
+                  {expandedServices.includes(service.id) && (
+                    <div className="mt-3 space-y-2">
+                      {service.subServices.map((subService) => (
+                        <div key={subService.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-xs font-semibold text-slate-900">{subService.name}</p>
+                            <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
+                              subService.isActive ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-700'
+                            }`}>
+                              {subService.isActive ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-600">{subService.description}</p>
+                          <div className="mt-2 flex items-center justify-between text-xs text-slate-700">
+                            <span>£{subService.price}</span>
+                            <span>{subService.estimatedHours}h</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th className="px-6 py-4 text-left text-sm font-semibold text-slate-900">Service Name</th>
@@ -252,6 +309,7 @@ export default function ServicesPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 
@@ -288,7 +346,7 @@ export default function ServicesPage() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-slate-900 mb-2">Price (£)</label>
                   <input
@@ -326,7 +384,7 @@ export default function ServicesPage() {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-900 mb-2">Images</label>
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                   {Array.from({ length: 5 }).map((_, idx) => {
                     const preview = imagePreviews[idx];
                     return (

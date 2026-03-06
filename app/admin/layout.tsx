@@ -35,7 +35,7 @@ export default function AdminLayout({
       
 
         {/* Page Content */}
-        <div className="flex-1 p-4 md:p-8 animate-fadeIn">
+        <div className="flex-1 px-4 pb-4 pt-16 md:px-8 md:pb-8 md:pt-20 animate-fadeIn">
           <div className="max-w-[1600px] mx-auto">
             {children}
           </div>

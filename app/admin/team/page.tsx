@@ -1,16 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { Eye, EyeOff, Mail, Plus, Search, Users } from 'lucide-react';
-import { mockTeamMembers } from '@/app/lib/mock-data';
 import DataTable, { Column } from '@/components/datatable';
 import { TeamMember } from '@/types';
+import axiosInstance from '@/app/lib/axiosinstance';
 
 const regionOptions = [
   { value: 'uk', label: 'United Kingdom (UK)' },
   { value: 'in', label: 'India (IN)' },
 ];
+
+const DEFAULT_ROLE_ID = '1vVN1415';
 
 const ukSubTeamOptions = [
   { value: 'all', label: 'All Members' },
@@ -57,10 +59,82 @@ type TeamFormData = {
   region: 'uk' | 'in';
 };
 
+type ApiUser = {
+  id?: string;
+  name?: string;
+  email?: string;
+  region?: string;
+  isActive?: boolean;
+  roleName?: string;
+  userId?: string;
+  createdAt?: string;
+};
+
+const resolveRole = (
+  roleName: string | undefined,
+  region: TeamMember['region'],
+) => {
+  const normalized = (roleName ?? '').toLowerCase();
+  if (normalized.includes('architect')) return 'architect';
+  if (normalized.includes('admin')) return 'admin';
+  return region === 'uk' ? 'agent_x' : 'agent_y';
+};
+
+const normalizeRegion = (
+  region: string | undefined,
+  fallback: TeamMember['region'],
+) => {
+  if (region === 'uk') return 'uk';
+  if (region === 'in') return 'in';
+  return fallback;
+};
+
+const mapUserToMember = (
+  user: ApiUser,
+  fallbackRegion: TeamMember['region'],
+): TeamMember => {
+  const region = normalizeRegion(user.region, fallbackRegion);
+  const createdDate = user.createdAt
+    ? user.createdAt.split('T')[0]
+    : new Date().toISOString().split('T')[0];
+  const resolvedUserId =
+    user.userId ||
+    (user as { userid?: string }).userid ||
+    (user as { userID?: string }).userID ||
+    user.id;
+  const agentCodeSource = resolvedUserId || user.id || 'AGT-000';
+  return {
+    id: user.id || agentCodeSource,
+    userId: resolvedUserId,
+    name: user.name || 'Unnamed',
+    email: user.email || '',
+    role: resolveRole(user.roleName, region),
+    team: region === 'uk' ? 'london' : 'india',
+    region,
+    agentCode: `AGT-${agentCodeSource}`,
+    isActive: user.isActive ?? true,
+    defaultPassword: false,
+    assignedProjects: 0,
+    joinedDate: createdDate,
+    createdDate,
+  };
+};
+
 export default function TeamPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [members, setMembers] = useState<TeamMember[]>(mockTeamMembers);
+  const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [statusError, setStatusError] = useState('');
+  const [statusUpdating, setStatusUpdating] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [statusConfirm, setStatusConfirm] = useState<{
+    member: TeamMember;
+    nextActive: boolean;
+  } | null>(null);
   const [activeRegionTab, setActiveRegionTab] = useState<'uk' | 'in'>('uk');
   const [ukSubTeamFilter, setUkSubTeamFilter] = useState('all');
   const [indiaSubTeamFilter, setIndiaSubTeamFilter] = useState('all');
@@ -72,7 +146,49 @@ export default function TeamPage() {
   const [revealedEmails, setRevealedEmails] = useState<Record<string, boolean>>(
     {},
   );
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadUsers = async () => {
+      try {
+        setIsLoading(true);
+        setLoadError('');
+        const response = await axiosInstance.get('/admin/users');
+        const payload = response?.data?.data ?? response?.data ?? [];
+        const users = Array.isArray(payload) ? payload : [];
+        if (isMounted) {
+          setMembers(users.map((user) => mapUserToMember(user, 'uk')));
+        }
+      } catch (error) {
+        const message =
+          (error as { response?: { data?: { message?: string } }; message?: string })
+            ?.response?.data?.message ||
+          (error as { message?: string })?.message ||
+          'Failed to load agents.';
+        if (isMounted) {
+          setLoadError(message);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadUsers();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const resolveMemberUserId = (member: TeamMember) =>
+    member.userId ||
+    (member.agentCode?.startsWith('AGT-') ? member.agentCode.slice(4) : '') ||
+    member.id;
   const filteredMembers = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     const subTeamFilter =
@@ -111,31 +227,165 @@ export default function TeamPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleAddAgent = () => {
-    if (!formData.name.trim() || !formData.email.trim()) {
+  const handleEditAgent = (member: TeamMember) => {
+    setEditingMember(member);
+    setCreateError('');
+    setFormData({
+      name: member.name,
+      email: member.email,
+      region: member.region,
+    });
+    setShowAddModal(true);
+  };
+
+  const handleAddAgent = async () => {
+    if (isCreating) return;
+
+    const name = formData.name.trim();
+    const email = formData.email.trim();
+    const roleId = DEFAULT_ROLE_ID;
+
+    if (!name || !email) {
+      setCreateError('Name and email are required.');
       return;
     }
 
-    const nextIndex = members.length + 1;
-    const createdDate = new Date().toISOString().split('T')[0];
-    const newMember: TeamMember = {
-      id: `tm${String(nextIndex).padStart(3, '0')}`,
-      name: formData.name.trim(),
-      email: formData.email.trim(),
-      role: formData.region === 'uk' ? 'agent_x' : 'agent_y',
-      team: formData.region === 'uk' ? 'london' : 'india',
-      region: formData.region,
-      agentCode: `AGT-${String(nextIndex).padStart(3, '0')}`,
-      isActive: true,
-      defaultPassword: true,
-      assignedProjects: 0,
-      joinedDate: createdDate,
-      createdDate,
-    };
+    setIsCreating(true);
+    setCreateError('');
+    try {
+      const response = await axiosInstance.post('/admin/users', {
+        name,
+        email,
+        roleId,
+        region: formData.region,
+      });
 
-    setMembers((prev) => [...prev, newMember]);
-    setFormData({ name: '', email: '', region: 'uk' });
-    setShowAddModal(false);
+      const data = response?.data?.data ?? response?.data ?? {};
+      const nextIndex = members.length + 1;
+      const fallbackMember = mapUserToMember(
+        {
+          id: `tm${String(nextIndex).padStart(3, '0')}`,
+          
+          name,
+          email,
+          region: formData.region,
+        },
+        formData.region,
+      );
+      const mapped = data?.id
+        ? mapUserToMember(data, formData.region)
+        : fallbackMember;
+      const newMember: TeamMember = {
+        ...fallbackMember,
+        ...mapped,
+        agentCode: data?.userId
+          ? `AGT-${data.userId}`
+          : mapped.agentCode || fallbackMember.agentCode,
+        userId:
+          data?.userId ||
+          data?.userID ||
+          data?.userid ||
+          mapped.userId ||
+          fallbackMember.userId,
+        defaultPassword: data?.defaultPassword ?? true,
+      };
+
+      setMembers((prev) => [...prev, newMember]);
+      setFormData({ name: '', email: '', region: 'uk' });
+      setShowAddModal(false);
+      setEditingMember(null);
+    } catch (error) {
+      const message =
+        (error as { response?: { data?: { message?: string } }; message?: string })
+          ?.response?.data?.message ||
+        (error as { message?: string })?.message ||
+        'Failed to create agent.';
+      setCreateError(message);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleUpdateAgent = async () => {
+    if (isCreating || !editingMember) return;
+
+    const name = formData.name.trim();
+    const email = formData.email.trim();
+    const roleId = DEFAULT_ROLE_ID;
+    const userId =
+      editingMember.userId ||
+      (editingMember.agentCode?.startsWith('AGT-')
+        ? editingMember.agentCode.slice(4)
+        : '');
+
+    if (!name || !email) {
+      setCreateError('Name and email are required.');
+      return;
+    }
+    if (!userId) {
+      setCreateError('User ID is missing for this agent.');
+      return;
+    }
+    setIsCreating(true);
+    setCreateError('');
+    try {
+      const response = await axiosInstance.put(
+        `/admin/users/${userId}`,
+        {
+          name,
+          email,
+          roleId,
+          region: formData.region,
+        },
+      );
+
+      const data = response?.data?.data ?? response?.data ?? {};
+      setMembers((prev) =>
+        prev.map((member) => {
+          if (member.id !== editingMember.id) return member;
+          const updatedRegion = normalizeRegion(data?.region, formData.region);
+          const updatedRole = data?.roleName
+            ? resolveRole(data.roleName, updatedRegion)
+            : member.role;
+          return {
+            ...member,
+            name: data?.name || name,
+            email: data?.email || email,
+            region: updatedRegion,
+            team: updatedRegion === 'uk' ? 'london' : 'india',
+            role: updatedRole,
+        
+            agentCode: data?.userId ? `AGT-${data.userId}` : member.agentCode,
+            userId:
+              data?.userId ||
+              data?.userID ||
+              data?.userid ||
+              member.userId ||
+              member.id,
+            isActive: data?.isActive ?? member.isActive,
+            createdDate: data?.createdAt
+              ? String(data.createdAt).split('T')[0]
+              : member.createdDate,
+            joinedDate: data?.createdAt
+              ? String(data.createdAt).split('T')[0]
+              : member.joinedDate,
+          };
+        }),
+      );
+
+      setFormData({ name: '', email: '', region: 'uk' });
+      setShowAddModal(false);
+      setEditingMember(null);
+    } catch (error) {
+      const message =
+        (error as { response?: { data?: { message?: string } }; message?: string })
+          ?.response?.data?.message ||
+        (error as { message?: string })?.message ||
+        'Failed to update agent.';
+      setCreateError(message);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const toggleDefaultPassword = (id: string) => {
@@ -148,12 +398,85 @@ export default function TeamPage() {
     );
   };
 
-  const toggleActiveStatus = (id: string) => {
+  const requestStatusChange = (member: TeamMember) => {
+    const userId = resolveMemberUserId(member);
+    if (!userId) {
+      setStatusError('User ID is missing for this agent.');
+      return;
+    }
+    setStatusConfirm({ member, nextActive: !member.isActive });
+  };
+
+  const applyStatusChange = async (member: TeamMember, nextActive: boolean) => {
+    if (statusUpdating[member.id]) return;
+
+    const userId = resolveMemberUserId(member);
+    if (!userId) {
+      setStatusError('User ID is missing for this agent.');
+      return;
+    }
+
+    setStatusError('');
+    setStatusUpdating((prev) => ({ ...prev, [member.id]: true }));
     setMembers((prev) =>
-      prev.map((member) =>
-        member.id === id ? { ...member, isActive: !member.isActive } : member,
+      prev.map((item) =>
+        item.id === member.id ? { ...item, isActive: nextActive } : item,
       ),
     );
+
+    try {
+      const response = await axiosInstance.patch(
+        `/admin/users/${userId}/status`,
+        { isActive: nextActive },
+      );
+
+      const data = response?.data?.data ?? response?.data ?? {};
+      setMembers((prev) =>
+        prev.map((item) => {
+          if (item.id !== member.id) return item;
+          return {
+            ...item,
+            isActive: data?.isActive ?? nextActive,
+            userId:
+              data?.userId ||
+              data?.userID ||
+              data?.userid ||
+              item.userId ||
+              item.id,
+            agentCode: data?.userId ? `AGT-${data.userId}` : item.agentCode,
+          };
+        }),
+      );
+    } catch (error) {
+      setMembers((prev) =>
+        prev.map((item) =>
+          item.id === member.id ? { ...item, isActive: member.isActive } : item,
+        ),
+      );
+      const message =
+        (error as { response?: { data?: { message?: string } }; message?: string })
+          ?.response?.data?.message ||
+        (error as { message?: string })?.message ||
+        'Failed to update status.';
+      setStatusError(message);
+    } finally {
+      setStatusUpdating((prev) => {
+        const next = { ...prev };
+        delete next[member.id];
+        return next;
+      });
+    }
+  };
+
+  const handleConfirmStatusChange = () => {
+    if (!statusConfirm) return;
+    const { member, nextActive } = statusConfirm;
+    setStatusConfirm(null);
+    applyStatusChange(member, nextActive);
+  };
+
+  const handleCancelStatusChange = () => {
+    setStatusConfirm(null);
   };
 
   const toggleEmailReveal = (id: string) => {
@@ -264,10 +587,12 @@ export default function TeamPage() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => toggleActiveStatus(row.id)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+            onClick={() => requestStatusChange(row)}
+            disabled={statusUpdating[row.id]}
+            aria-busy={statusUpdating[row.id]}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-opacity ${
               row.isActive ? 'bg-emerald-500' : 'bg-slate-300'
-            }`}
+            } ${statusUpdating[row.id] ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
             <span
               className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
@@ -289,14 +614,15 @@ export default function TeamPage() {
     },
     {
       key: 'actions',
-      label: 'Profile',
+      label: 'Actions',
       render: (_v, row) => (
-        <Link
-          href={`/admin/team/${row.id}`}
+        <button
+          type="button"
+          onClick={() => handleEditAgent(row)}
           className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
         >
-          View
-        </Link>
+          Edit
+        </button>
       ),
     },
   ];
@@ -309,7 +635,12 @@ export default function TeamPage() {
           <p className="mt-2 text-slate-600">Manage agents across regions.</p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => {
+            setEditingMember(null);
+            setCreateError('');
+            setFormData({ name: '', email: '', region: 'uk' });
+            setShowAddModal(true);
+          }}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700 md:w-auto"
         >
           <Plus size={20} />
@@ -413,6 +744,16 @@ export default function TeamPage() {
       </div>
 
       <div className="space-y-3 md:hidden">
+        {(loadError || statusError) && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {loadError || statusError}
+          </div>
+        )}
+        {isLoading && (
+          <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+            Loading agents...
+          </div>
+        )}
         {filteredMembers.map((member) => (
           <article
             key={member.id}
@@ -428,15 +769,36 @@ export default function TeamPage() {
                 </Link>
                 <p className="mt-1 text-xs text-slate-500">{member.agentCode}</p>
               </div>
-              <span
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                  member.isActive
-                    ? 'bg-emerald-50 text-emerald-700'
-                    : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                {member.isActive ? 'Active' : 'Inactive'}
-              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => requestStatusChange(member)}
+                  disabled={statusUpdating[member.id]}
+                  aria-busy={statusUpdating[member.id]}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-opacity ${
+                    member.isActive ? 'bg-emerald-500' : 'bg-slate-300'
+                  } ${
+                    statusUpdating[member.id]
+                      ? 'opacity-60 cursor-not-allowed'
+                      : ''
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      member.isActive ? 'translate-x-4' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    member.isActive
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {member.isActive ? 'Active' : 'Inactive'}
+                </span>
+              </div>
             </div>
             <div className="mt-3 flex items-center gap-2">
               <p className="text-sm text-slate-700">
@@ -462,10 +824,17 @@ export default function TeamPage() {
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
                 {getTeamLabel(member.team)}
               </span>
+              <button
+                type="button"
+                onClick={() => handleEditAgent(member)}
+                className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700"
+              >
+                Edit
+              </button>
             </div>
           </article>
         ))}
-        {filteredMembers.length === 0 && (
+        {!isLoading && filteredMembers.length === 0 && (
           <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
             No team members found for this filter.
           </div>
@@ -473,13 +842,26 @@ export default function TeamPage() {
       </div>
 
       <div className="hidden md:block">
+        {(loadError || statusError) && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {loadError || statusError}
+          </div>
+        )}
+        {isLoading ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+            Loading agents...
+          </div>
+        ) : (
         <DataTable data={filteredMembers} columns={columns} />
+        )}
       </div>
 
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl md:p-8">
-            <h2 className="mb-6 text-2xl font-bold text-slate-900">Add Agent</h2>
+            <h2 className="mb-6 text-2xl font-bold text-slate-900">
+              {editingMember ? 'Edit Agent' : 'Add Agent'}
+            </h2>
 
             <div className="space-y-4">
               <div>
@@ -529,16 +911,62 @@ export default function TeamPage() {
               </div>
             </div>
 
+            {createError && (
+              <p className="mt-3 text-sm font-medium text-red-600">{createError}</p>
+            )}
+
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <button
-                onClick={handleAddAgent}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-blue-700"
+                onClick={editingMember ? handleUpdateAgent : handleAddAgent}
+                disabled={isCreating}
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-70"
               >
                 <Plus size={18} />
-                Add Agent
+                {editingMember
+                  ? isCreating
+                    ? 'Saving...'
+                    : 'Save Changes'
+                  : isCreating
+                    ? 'Adding...'
+                    : 'Add Agent'}
               </button>
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={() => {
+                  setShowAddModal(false);
+                  setEditingMember(null);
+                  setCreateError('');
+                }}
+                className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 font-medium text-slate-900 transition-colors hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {statusConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <h2 className="text-xl font-bold text-slate-900">
+              Confirm Status Change
+            </h2>
+            <p className="mt-3 text-sm text-slate-600">
+              Are you sure you want to{' '}
+              <span className="font-semibold">
+                {statusConfirm.nextActive ? 'activate' : 'deactivate'}
+              </span>{' '}
+              {statusConfirm.member.name}?
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button
+                onClick={handleConfirmStatusChange}
+                className="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-blue-700"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={handleCancelStatusChange}
                 className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 font-medium text-slate-900 transition-colors hover:bg-slate-50"
               >
                 Cancel

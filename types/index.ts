@@ -40,6 +40,7 @@ export interface SubService {
 
 // Team/Agent Types
 export interface TeamMember {
+  userId: any;
   id: string;
   name: string;
   email: string;

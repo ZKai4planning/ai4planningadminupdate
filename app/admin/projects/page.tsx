@@ -530,7 +530,7 @@ function ProjectsPageContent() {
             </div>
 
             <div className="rounded-2xl bg-white/90 p-4 ring-1 ring-slate-200/70">
-              <div className="flex items-start gap-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
                 <h2 className="mt-2 text-2xl font-bold text-slate-900">
                   {selectedProject.title}
                 </h2>
@@ -581,7 +581,7 @@ function ProjectsPageContent() {
 
       {selectedProject ? (
         <div className="animate-enter rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200/70">
-          <div className="mb-6 flex items-center justify-between">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
                 {activeProjectTab === "overview"
@@ -594,7 +594,7 @@ function ProjectsPageContent() {
                   : "Roadmap and step-level insights"}
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
                 <button
                   type="button"
@@ -690,7 +690,52 @@ function ProjectsPageContent() {
                 Search, filter, sort and open project details
               </span>
             </div>
-            <DataTable data={projectTableRows} columns={projectColumns} />
+            <div className="md:hidden space-y-3">
+              {projectTableRows.map((project) => (
+                <div key={project.id} className="rounded-lg border border-slate-200 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{project.clientName}</p>
+                      <p className="text-xs text-slate-500">Client ID: {project.clientId}</p>
+                    </div>
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        project.statusLabel === "Closed"
+                          ? "bg-blue-50 text-blue-700"
+                          : "bg-amber-50 text-amber-700"
+                      }`}
+                    >
+                      {project.statusLabel}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <span className="text-slate-500">Project ID</span>
+                    <span className="text-slate-700">{project.projectId}</span>
+                    <span className="text-slate-500">Tenant ID</span>
+                    <span className="text-slate-700">{project.tenantId}</span>
+                    <span className="text-slate-500">Agent X</span>
+                    <span className="text-slate-700">{project.agentX}</span>
+                    <span className="text-slate-500">Agent Y</span>
+                    <span className="text-slate-700">{project.agentY}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedProject(
+                        projects.find((item) => item.id === project.id) ?? null,
+                      );
+                      setActiveProjectTab("overview");
+                    }}
+                    className="mt-3 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white"
+                  >
+                    View Details
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:block">
+              <DataTable data={projectTableRows} columns={projectColumns} />
+            </div>
           </div>
         </div>
       )}
