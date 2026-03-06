@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import axiosInstance from "@/lib/axiosinstance";
+import axiosInstance from "@/app/lib/axiosinstance";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { z } from "zod";
 

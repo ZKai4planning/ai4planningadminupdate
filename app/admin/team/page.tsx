@@ -12,8 +12,6 @@ const regionOptions = [
   { value: 'in', label: 'India (IN)' },
 ];
 
-const DEFAULT_ROLE_ID = '1vVN1415';
-
 const ukSubTeamOptions = [
   { value: 'all', label: 'All Members' },
   { value: 'business-analyst', label: 'Business Analyst' },
@@ -40,6 +38,7 @@ const getSubTeamKey = (member: TeamMember) => {
 };
 
 const getDesignation = (member: TeamMember) => {
+  if (member.roleName) return member.roleName;
   if (member.role === 'agent_x') return 'Business Analyst';
   if (member.role === 'agent_y') return 'CAD Engineer';
   if (member.role === 'architect') return 'Architect Lead';
@@ -57,6 +56,14 @@ type TeamFormData = {
   name: string;
   email: string;
   region: 'uk' | 'in';
+  roleId: string;
+};
+
+type RoleOption = {
+  _id?: string;
+  roleId: string;
+  roleName: string;
+  status?: number;
 };
 
 type ApiUser = {
@@ -65,9 +72,19 @@ type ApiUser = {
   email?: string;
   region?: string;
   isActive?: boolean;
+  roleId?: string;
   roleName?: string;
   userId?: string;
   createdAt?: string;
+};
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const resolveDefaultRoleId = (roles: RoleOption[]) => {
+  const employeesRole = roles.find(
+    (role) => role.roleName?.toLowerCase() === 'employees',
+  );
+  return employeesRole?.roleId ?? roles[0]?.roleId ?? '';
 };
 
 const resolveRole = (
@@ -108,6 +125,8 @@ const mapUserToMember = (
     userId: resolvedUserId,
     name: user.name || 'Unnamed',
     email: user.email || '',
+    roleId: user.roleId,
+    roleName: user.roleName,
     role: resolveRole(user.roleName, region),
     team: region === 'uk' ? 'london' : 'india',
     region,
@@ -125,6 +144,9 @@ export default function TeamPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [roles, setRoles] = useState<RoleOption[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [rolesError, setRolesError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [statusError, setStatusError] = useState('');
@@ -142,12 +164,86 @@ export default function TeamPage() {
     name: '',
     email: '',
     region: 'uk',
+    roleId: '',
   });
   const [revealedEmails, setRevealedEmails] = useState<Record<string, boolean>>(
     {},
   );
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState('');
+  const defaultRoleId = useMemo(() => resolveDefaultRoleId(roles), [roles]);
+
+  const validateAgentForm = (name: string, email: string, roleId: string) => {
+    if (!name || !email) {
+      return 'Name and email are required.';
+    }
+    if (name.length < 3 || name.length > 50) {
+      return 'Name must be between 3 and 50 characters.';
+    }
+    if (!EMAIL_REGEX.test(email)) {
+      return 'Enter a valid email address.';
+    }
+    if (!roleId) {
+      return 'Role is required.';
+    }
+    return '';
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadRoles = async () => {
+      try {
+        setRolesLoading(true);
+        setRolesError('');
+        const response = await axiosInstance.get('/roles');
+        const payload =
+          response?.data?.roles ??
+          response?.data?.data?.roles ??
+          response?.data?.data ??
+          response?.data ??
+          [];
+        const rolesPayload = Array.isArray(payload) ? payload : [];
+        const normalized = rolesPayload
+          .map((role) => ({
+            _id: role?._id,
+            roleId: String(role?.roleId ?? ''),
+            roleName: String(role?.roleName ?? ''),
+            status: role?.status,
+          }))
+          .filter((role) => role.roleId && role.roleName);
+        if (isMounted) {
+          setRoles(normalized);
+        }
+      } catch (error) {
+        const message =
+          (error as { response?: { data?: { message?: string } }; message?: string })
+            ?.response?.data?.message ||
+          (error as { message?: string })?.message ||
+          'Failed to load roles.';
+        if (isMounted) {
+          setRolesError(message);
+        }
+      } finally {
+        if (isMounted) {
+          setRolesLoading(false);
+        }
+      }
+    };
+
+    loadRoles();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!defaultRoleId) return;
+    setFormData((prev) =>
+      prev.roleId ? prev : { ...prev, roleId: defaultRoleId },
+    );
+  }, [defaultRoleId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -156,7 +252,7 @@ export default function TeamPage() {
       try {
         setIsLoading(true);
         setLoadError('');
-        const response = await axiosInstance.get('/admin/users');
+        const response = await axiosInstance.get('/employee/users');
         const payload = response?.data?.data ?? response?.data ?? [];
         const users = Array.isArray(payload) ? payload : [];
         if (isMounted) {
@@ -234,6 +330,7 @@ export default function TeamPage() {
       name: member.name,
       email: member.email,
       region: member.region,
+      roleId: member.roleId ?? defaultRoleId,
     });
     setShowAddModal(true);
   };
@@ -243,17 +340,18 @@ export default function TeamPage() {
 
     const name = formData.name.trim();
     const email = formData.email.trim();
-    const roleId = DEFAULT_ROLE_ID;
+    const roleId = formData.roleId;
 
-    if (!name || !email) {
-      setCreateError('Name and email are required.');
+    const validationError = validateAgentForm(name, email, roleId);
+    if (validationError) {
+      setCreateError(validationError);
       return;
     }
 
     setIsCreating(true);
     setCreateError('');
     try {
-      const response = await axiosInstance.post('/admin/users', {
+      const response = await axiosInstance.post('/employee/users', {
         name,
         email,
         roleId,
@@ -265,9 +363,11 @@ export default function TeamPage() {
       const fallbackMember = mapUserToMember(
         {
           id: `tm${String(nextIndex).padStart(3, '0')}`,
-          
+
           name,
           email,
+          roleId,
+          roleName: roles.find((role) => role.roleId === roleId)?.roleName,
           region: formData.region,
         },
         formData.region,
@@ -281,6 +381,12 @@ export default function TeamPage() {
         agentCode: data?.userId
           ? `AGT-${data.userId}`
           : mapped.agentCode || fallbackMember.agentCode,
+        roleId: data?.roleId || roleId || mapped.roleId || fallbackMember.roleId,
+        roleName:
+          data?.roleName ||
+          mapped.roleName ||
+          fallbackMember.roleName ||
+          roles.find((role) => role.roleId === roleId)?.roleName,
         userId:
           data?.userId ||
           data?.userID ||
@@ -291,7 +397,12 @@ export default function TeamPage() {
       };
 
       setMembers((prev) => [...prev, newMember]);
-      setFormData({ name: '', email: '', region: 'uk' });
+      setFormData({
+        name: '',
+        email: '',
+        region: 'uk',
+        roleId: defaultRoleId,
+      });
       setShowAddModal(false);
       setEditingMember(null);
     } catch (error) {
@@ -311,15 +422,16 @@ export default function TeamPage() {
 
     const name = formData.name.trim();
     const email = formData.email.trim();
-    const roleId = DEFAULT_ROLE_ID;
+    const roleId = formData.roleId;
     const userId =
       editingMember.userId ||
       (editingMember.agentCode?.startsWith('AGT-')
         ? editingMember.agentCode.slice(4)
         : '');
 
-    if (!name || !email) {
-      setCreateError('Name and email are required.');
+    const validationError = validateAgentForm(name, email, roleId);
+    if (validationError) {
+      setCreateError(validationError);
       return;
     }
     if (!userId) {
@@ -330,7 +442,7 @@ export default function TeamPage() {
     setCreateError('');
     try {
       const response = await axiosInstance.put(
-        `/admin/users/${userId}`,
+        `/employee/users/${userId}`,
         {
           name,
           email,
@@ -347,6 +459,11 @@ export default function TeamPage() {
           const updatedRole = data?.roleName
             ? resolveRole(data.roleName, updatedRegion)
             : member.role;
+          const nextRoleId = data?.roleId || roleId || member.roleId;
+          const nextRoleName =
+            data?.roleName ||
+            roles.find((role) => role.roleId === nextRoleId)?.roleName ||
+            member.roleName;
           return {
             ...member,
             name: data?.name || name,
@@ -354,6 +471,8 @@ export default function TeamPage() {
             region: updatedRegion,
             team: updatedRegion === 'uk' ? 'london' : 'india',
             role: updatedRole,
+            roleId: nextRoleId,
+            roleName: nextRoleName,
         
             agentCode: data?.userId ? `AGT-${data.userId}` : member.agentCode,
             userId:
@@ -373,7 +492,12 @@ export default function TeamPage() {
         }),
       );
 
-      setFormData({ name: '', email: '', region: 'uk' });
+      setFormData({
+        name: '',
+        email: '',
+        region: 'uk',
+        roleId: defaultRoleId,
+      });
       setShowAddModal(false);
       setEditingMember(null);
     } catch (error) {
@@ -426,7 +550,7 @@ export default function TeamPage() {
 
     try {
       const response = await axiosInstance.patch(
-        `/admin/users/${userId}/status`,
+        `/employee/users/${userId}/status`,
         { isActive: nextActive },
       );
 
@@ -638,7 +762,12 @@ export default function TeamPage() {
           onClick={() => {
             setEditingMember(null);
             setCreateError('');
-            setFormData({ name: '', email: '', region: 'uk' });
+            setFormData({
+              name: '',
+              email: '',
+              region: 'uk',
+              roleId: defaultRoleId,
+            });
             setShowAddModal(true);
           }}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700 md:w-auto"
@@ -874,8 +1003,13 @@ export default function TeamPage() {
                   value={formData.name}
                   onChange={handleInputChange}
                   placeholder="e.g., Alex Morgan"
+                  minLength={3}
+                  maxLength={50}
                   className="w-full rounded-lg border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                <p className="mt-1 text-xs text-slate-500">
+                  Enter min 3 to max 50 characters.
+                </p>
               </div>
 
               <div>
@@ -888,6 +1022,7 @@ export default function TeamPage() {
                   value={formData.email}
                   onChange={handleInputChange}
                   placeholder="e.g., alex@company.com"
+                  autoComplete="email"
                   className="w-full rounded-lg border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -908,6 +1043,35 @@ export default function TeamPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-900">
+                  Role
+                </label>
+                <select
+                  name="roleId"
+                  value={formData.roleId}
+                  onChange={handleInputChange}
+                  disabled={rolesLoading}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100"
+                >
+                  {rolesLoading && <option value="">Loading roles...</option>}
+                  {!rolesLoading && roles.length === 0 && (
+                    <option value="">No roles available</option>
+                  )}
+                  {!rolesLoading &&
+                    roles.map((role) => (
+                      <option key={role.roleId} value={role.roleId}>
+                        {role.roleName}
+                      </option>
+                    ))}
+                </select>
+                {rolesError && (
+                  <p className="mt-1 text-xs font-medium text-red-600">
+                    {rolesError}
+                  </p>
+                )}
               </div>
             </div>
 

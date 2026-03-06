@@ -18,6 +18,11 @@ export function ClientLogin() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isResending, setIsResending] = useState(false)
 
+  const routeToResetPassword = (email: string) => {
+    router.push(`/reset-password?email=${encodeURIComponent(email)}`)
+    router.refresh()
+  }
+
   const getErrorMessage = (error: unknown) => {
     if (typeof error === "string") return error
     if (error && typeof error === "object") {
@@ -87,10 +92,14 @@ export function ClientLogin() {
     if (step === "REQUEST_OTP") {
       setIsSubmitting(true)
       try {
-        await axiosInstance.post("/admin/auth/login", {
+        const response = await axiosInstance.post("/admin/auth/login", {
           email,
           password,
         })
+        if (response?.status === 201) {
+          routeToResetPassword(email)
+          return
+        }
         setStep("VERIFY_OTP")
       } catch (error) {
         setErrorMessage(getErrorMessage(error))
@@ -112,6 +121,11 @@ export function ClientLogin() {
         email: email,
         otp: otpCode,
       })
+
+      if (response?.status === 201) {
+        routeToResetPassword(email)
+        return
+      }
 
       const data = response?.data ?? {}
       const token =
