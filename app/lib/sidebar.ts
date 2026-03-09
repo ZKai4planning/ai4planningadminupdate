@@ -43,6 +43,12 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
   //   href: "/admin/messages",
   // },
   {
+    id: "services",
+    label: "Services",
+    icon: FiLayers,
+    href: "/admin/services"
+  },
+  {
     id: "clients",
     label: "Clients",
     icon: FiCheckSquare,

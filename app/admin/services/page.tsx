@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronDown, ChevronRight, Plus, Zap } from 'lucide-react';
 import axiosInstance from '@/app/lib/axiosinstance';
 import DataTable, { Column } from '@/components/datatable';
+import BottomToast, { type ToastPayload, type ToastType } from '@/components/ui/bottom-toast';
 
 type SubService = {
   id: string;
@@ -29,6 +30,7 @@ type Service = {
 };
 
 type ApiSubService = {
+  image: null;
   id?: string;
   _id?: string;
   subServiceId?: string;
@@ -45,6 +47,7 @@ type ApiSubService = {
 };
 
 type ApiService = {
+  image: string | null;
   id?: string;
   _id?: string;
   serviceId?: string;
@@ -88,18 +91,6 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'n-a';
 
-const getPrimaryImageUrl = (images?: string[] | string | null) => {
-  if (Array.isArray(images)) {
-    const firstImage = images.find((image) => typeof image === 'string' && image.trim().length > 0);
-    return firstImage ?? null;
-  }
-
-  if (typeof images === 'string' && images.trim().length > 0) {
-    return images;
-  }
-
-  return null;
-};
 
 const normalizeSubService = (subService: ApiSubService, fallbackServiceId = ''): SubService => ({
   id: subService.subServiceId ?? subService.id ?? subService._id ?? '',
@@ -110,7 +101,7 @@ const normalizeSubService = (subService: ApiSubService, fallbackServiceId = ''):
     subService.slug ??
     subService.subServiceSlug ??
     slugify(subService.name ?? subService.subServiceName ?? subService.title ?? ''),
-  imageUrl: getPrimaryImageUrl(subService.images),
+  imageUrl: subService.image ?? null,
   description: subService.description ?? '',
   isActive: subService.isActive ?? subService.status ?? true,
 });
@@ -123,7 +114,7 @@ const normalizeService = (service: ApiService): Service => ({
     service.slug ??
     service.serviceSlug ??
     slugify(service.name ?? service.serviceName ?? service.title ?? ''),
-  imageUrl: getPrimaryImageUrl(service.images),
+  imageUrl:service.image,
   description: service.description ?? '',
   isActive: service.isActive ?? service.status ?? true,
   subServices: Array.isArray(service.subServices)
@@ -141,9 +132,10 @@ const getAvatarText = (title: string, name: string) => (title || name || 'S').ch
 
 export default function ServicesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(false);
-  const [listError, setListError] = useState('');
+  const [toast, setToast] = useState<ToastPayload | null>(null);
   const [statusUpdatingByService, setStatusUpdatingByService] = useState<Record<string, boolean>>(
     {},
   );
@@ -160,7 +152,6 @@ export default function ServicesPage() {
   const fetchServices = async () => {
     try {
       setLoading(true);
-      setListError('');
 
       const res = await axiosInstance.get('/services?includeDeleted=true');
       const payload = (res.data?.data ?? res.data ?? []) as ApiService[];
@@ -170,7 +161,10 @@ export default function ServicesPage() {
 
       setServices(normalized);
     } catch (error) {
-      setListError(getErrorMessage(error, 'Failed to load services.'));
+      setToast({
+        type: 'error',
+        message: getErrorMessage(error, 'Failed to load services.'),
+      });
     } finally {
       setLoading(false);
     }
@@ -179,6 +173,20 @@ export default function ServicesPage() {
   useEffect(() => {
     void fetchServices();
   }, []);
+
+  useEffect(() => {
+    const toastMessage = searchParams.get('toast');
+    if (!toastMessage) return;
+
+    const toastTypeParam = searchParams.get('toastType');
+    const toastType: ToastType =
+      toastTypeParam === 'success' || toastTypeParam === 'error' || toastTypeParam === 'info'
+        ? toastTypeParam
+        : 'info';
+
+    setToast({ message: toastMessage, type: toastType });
+    router.replace('/admin/services');
+  }, [router, searchParams]);
 
   const navigateToEditPage = (params: {
     type: 'service' | 'subservice';
@@ -235,7 +243,6 @@ export default function ServicesPage() {
     if (statusUpdatingByService[serviceId]) return;
 
     setStatusUpdatingByService((prev) => ({ ...prev, [serviceId]: true }));
-    setListError('');
 
     const previousServices = services;
     setServices((prev) =>
@@ -258,16 +265,21 @@ export default function ServicesPage() {
           await axiosInstance.post(`/services/${serviceId}/soft-delete`);
         }
       }
+      setToast({
+        type: 'success',
+        message: nextActive ? 'Service activated successfully.' : 'Service deactivated successfully.',
+      });
     } catch (error) {
       setServices(previousServices);
-      setListError(
-        getErrorMessage(
+      setToast({
+        type: 'error',
+        message: getErrorMessage(
           error,
           nextActive
             ? 'Failed to activate service. Please try again.'
             : 'Failed to deactivate service. Please try again.',
         ),
-      );
+      });
     } finally {
       setStatusUpdatingByService((prev) => {
         const next = { ...prev };
@@ -651,12 +663,6 @@ export default function ServicesPage() {
         </button>
       </div>
 
-      {listError && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {listError}
-        </div>
-      )}
-
       {loading ? (
         <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
           Loading services...
@@ -664,6 +670,8 @@ export default function ServicesPage() {
       ) : (
         <DataTable data={tableRows} columns={columns} />
       )}
+
+      <BottomToast toast={toast} onClose={() => setToast(null)} />
     </div>
   );
 }

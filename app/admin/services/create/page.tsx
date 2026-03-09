@@ -66,11 +66,11 @@ const buildCreateServiceFormData = (formData: ServiceFormState) => {
   const data = new FormData();
   data.append('title', formData.title.trim());
   data.append('serviceName', formData.name.trim());
-  data.append('name', formData.name.trim());
+
   data.append('description', formData.description.trim());
 
   if (formData.image) {
-    data.append('images', formData.image);
+    data.append('image', formData.image);
   }
 
   return data;
@@ -81,11 +81,11 @@ const buildCreateSubServiceFormData = (parentServiceId: string, formData: Servic
   data.append('serviceId', parentServiceId);
   data.append('title', formData.title.trim());
   data.append('serviceName', formData.name.trim());
-  data.append('name', formData.name.trim());
+
   data.append('description', formData.description.trim());
 
   if (formData.image) {
-    data.append('images', formData.image);
+    data.append('image', formData.image);
   }
 
   return data;
@@ -99,7 +99,7 @@ const buildUpdateFormData = (
   const data = new FormData();
   data.append('title', formData.title.trim());
   data.append('serviceName', formData.name.trim());
-  data.append('name', formData.name.trim());
+
   data.append('description', formData.description.trim());
 
   if (parentServiceId) {
@@ -111,7 +111,7 @@ const buildUpdateFormData = (
   }
 
   if (formData.image) {
-    data.append('images', formData.image);
+    data.append('image', formData.image);
   }
 
   return data;
@@ -342,7 +342,10 @@ export default function CreateServicePage() {
       setServiceFormError('Title, service name, and description are required.');
       return;
     }
-
+if (!/^[A-Za-z\s]+$/.test(title)) {
+  setServiceFormError('Title can contain only letters and spaces.');
+  return;
+}
     if (isSubService && !selectedParentServiceId) {
       setServiceFormError('Please choose a parent service.');
       return;
@@ -542,6 +545,12 @@ export default function CreateServicePage() {
           </div>
 
           <div className="space-y-5 p-6">
+            {serviceFormError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                {serviceFormError}
+              </div>
+            )}
+
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-900">
                 Create Type <span className="text-red-500">*</span>
@@ -637,11 +646,6 @@ export default function CreateServicePage() {
               />
             </div>
 
-            {serviceFormError && (
-              <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {serviceFormError}
-              </p>
-            )}
           </div>
         </div>
       </div>

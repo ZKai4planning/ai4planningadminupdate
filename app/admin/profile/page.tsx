@@ -367,9 +367,7 @@ export default function ProfilePage() {
               />
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-              User ID: <span className="font-semibold text-slate-800">{userId || '-'}</span>
-            </div>
+          
 
             <button
               type="submit"

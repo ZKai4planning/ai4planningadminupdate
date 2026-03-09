@@ -78,7 +78,7 @@ type ApiUser = {
   createdAt?: string;
 };
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_REGEX =  /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
 const resolveDefaultRoleId = (roles: RoleOption[]) => {
   const employeesRole = roles.find(
@@ -177,9 +177,22 @@ export default function TeamPage() {
     if (!name || !email) {
       return 'Name and email are required.';
     }
+    if (!name.trim() || !email.trim()) {
+      return 'Name and email cannot be empty.';
+    }
+
+if (!/^[A-Za-z\s]+$/.test(name.trim())) {
+  return 'Name can contain only letters and spaces.';
+}
+    if (name.includes('  ')) {
+      return 'Name cannot contain consecutive spaces.';
+    }
+
+
     if (name.length < 3 || name.length > 50) {
       return 'Name must be between 3 and 50 characters.';
     }
+
     if (!EMAIL_REGEX.test(email)) {
       return 'Enter a valid email address.';
     }
