@@ -1,14 +1,18 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { Search, Plus, Zap, Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { ChevronDown, ChevronRight, Plus, Zap } from 'lucide-react';
 import axiosInstance from '@/app/lib/axiosinstance';
+import DataTable, { Column } from '@/components/datatable';
 
 type SubService = {
   id: string;
   serviceId: string;
   title: string;
   name: string;
+  slug: string;
+  imageUrl: string | null;
   description: string;
   isActive: boolean;
 };
@@ -17,16 +21,11 @@ type Service = {
   id: string;
   title: string;
   name: string;
+  slug: string;
+  imageUrl: string | null;
   description: string;
   isActive: boolean;
   subServices: SubService[];
-};
-
-type ServiceFormState = {
-  title: string;
-  name: string;
-  description: string;
-  image: File | null;
 };
 
 type ApiSubService = {
@@ -37,6 +36,9 @@ type ApiSubService = {
   title?: string;
   name?: string;
   subServiceName?: string;
+  slug?: string;
+  subServiceSlug?: string;
+  images?: string[] | string | null;
   description?: string;
   isActive?: boolean;
   status?: boolean;
@@ -49,29 +51,54 @@ type ApiService = {
   title?: string;
   name?: string;
   serviceName?: string;
+  slug?: string;
+  serviceSlug?: string;
+  images?: string[] | string | null;
   description?: string;
   isActive?: boolean;
   status?: boolean;
   subServices?: ApiSubService[];
 };
 
-const EMPTY_SERVICE_FORM: ServiceFormState = {
-  title: '',
-  name: '',
-  description: '',
-  image: null,
+type ServiceTableRow = {
+  id: string;
+  rowKind: 'service' | 'subservice' | 'meta';
+  serviceId: string;
+  entityId?: string;
+  parentServiceId?: string;
+  title: string;
+  name: string;
+  slug: string;
+  imageUrl?: string | null;
+  description: string;
+  isActive?: boolean;
+  isExpanded?: boolean;
+  subIndex?: number;
 };
-
-const FALLBACK_UPDATE_STATUS_CODES = [404, 405, 415];
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   const err = error as { response?: { data?: { message?: string } }; message?: string };
   return err?.response?.data?.message || err?.message || fallback;
 };
 
-const getStatusCode = (error: unknown) => {
-  const err = error as { response?: { status?: number } };
-  return err?.response?.status;
+const slugify = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'n-a';
+
+const getPrimaryImageUrl = (images?: string[] | string | null) => {
+  if (Array.isArray(images)) {
+    const firstImage = images.find((image) => typeof image === 'string' && image.trim().length > 0);
+    return firstImage ?? null;
+  }
+
+  if (typeof images === 'string' && images.trim().length > 0) {
+    return images;
+  }
+
+  return null;
 };
 
 const normalizeSubService = (subService: ApiSubService, fallbackServiceId = ''): SubService => ({
@@ -79,6 +106,11 @@ const normalizeSubService = (subService: ApiSubService, fallbackServiceId = ''):
   serviceId: subService.serviceId ?? fallbackServiceId,
   title: subService.title ?? '',
   name: subService.name ?? subService.subServiceName ?? '',
+  slug:
+    subService.slug ??
+    subService.subServiceSlug ??
+    slugify(subService.name ?? subService.subServiceName ?? subService.title ?? ''),
+  imageUrl: getPrimaryImageUrl(subService.images),
   description: subService.description ?? '',
   isActive: subService.isActive ?? subService.status ?? true,
 });
@@ -87,6 +119,11 @@ const normalizeService = (service: ApiService): Service => ({
   id: service.serviceId ?? service.id ?? service._id ?? '',
   title: service.title ?? '',
   name: service.name ?? service.serviceName ?? '',
+  slug:
+    service.slug ??
+    service.serviceSlug ??
+    slugify(service.name ?? service.serviceName ?? service.title ?? ''),
+  imageUrl: getPrimaryImageUrl(service.images),
   description: service.description ?? '',
   isActive: service.isActive ?? service.status ?? true,
   subServices: Array.isArray(service.subServices)
@@ -98,57 +135,18 @@ const normalizeService = (service: ApiService): Service => ({
     : [],
 });
 
-const buildServiceFormData = (formData: ServiceFormState, useMethodOverride = false) => {
-  const data = new FormData();
-
-  data.append('title', formData.title.trim());
-  data.append('serviceName', formData.name.trim());
-  data.append('name', formData.name.trim());
-  data.append('description', formData.description.trim());
-
-  if (useMethodOverride) {
-    data.append('_method', 'PUT');
-  }
-
-  if (formData.image) {
-    data.append('images', formData.image);
-  }
-
-  return data;
-};
-
-const buildCreateSubServiceFormData = (
-  parentServiceId: string,
-  formData: ServiceFormState,
-) => {
-  const data = new FormData();
-  data.append('serviceId', parentServiceId);
-  data.append('title', formData.title.trim());
-  data.append('serviceName', formData.name.trim());
-  data.append('description', formData.description.trim());
-
-  if (formData.image) {
-    data.append('images', formData.image);
-  }
-
-  return data;
-};
+const getLabel = (title: string, name: string) => title || name || 'Untitled';
+const getDescription = (description: string) => description || 'No description';
+const getAvatarText = (title: string, name: string) => (title || name || 'S').charAt(0).toUpperCase();
 
 export default function ServicesPage() {
+  const router = useRouter();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(false);
   const [listError, setListError] = useState('');
-
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showServiceModal, setShowServiceModal] = useState(false);
-  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
-  const [modalEntityType, setModalEntityType] = useState<'service' | 'subservice'>('service');
-  const [selectedParentServiceId, setSelectedParentServiceId] = useState('');
-
-  const [serviceFormData, setServiceFormData] = useState<ServiceFormState>(EMPTY_SERVICE_FORM);
-  const [serviceFormError, setServiceFormError] = useState('');
-  const [serviceSaving, setServiceSaving] = useState(false);
-  const [serviceImagePreview, setServiceImagePreview] = useState<string | null>(null);
+  const [statusUpdatingByService, setStatusUpdatingByService] = useState<Record<string, boolean>>(
+    {},
+  );
 
   const [expandedServiceId, setExpandedServiceId] = useState<string | null>(null);
   const [subServicesByService, setSubServicesByService] = useState<Record<string, SubService[]>>({});
@@ -159,26 +157,12 @@ export default function ServicesPage() {
     Record<string, string>
   >({});
 
-  useEffect(() => {
-    if (!serviceFormData.image) {
-      setServiceImagePreview(null);
-      return;
-    }
-
-    const preview = URL.createObjectURL(serviceFormData.image);
-    setServiceImagePreview(preview);
-
-    return () => {
-      URL.revokeObjectURL(preview);
-    };
-  }, [serviceFormData.image]);
-
   const fetchServices = async () => {
     try {
       setLoading(true);
       setListError('');
 
-      const res = await axiosInstance.get('/services');
+      const res = await axiosInstance.get('/services?includeDeleted=true');
       const payload = (res.data?.data ?? res.data ?? []) as ApiService[];
       const normalized = Array.isArray(payload)
         ? payload.map(normalizeService).filter((service) => service.id)
@@ -196,174 +180,101 @@ export default function ServicesPage() {
     void fetchServices();
   }, []);
 
-  const filteredServices = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    if (!term) return services;
-
-    return services.filter((service) => {
-      const title = service.title.toLowerCase();
-      const name = service.name.toLowerCase();
-      const description = service.description.toLowerCase();
-      return title.includes(term) || name.includes(term) || description.includes(term);
+  const navigateToEditPage = (params: {
+    type: 'service' | 'subservice';
+    id: string;
+    title: string;
+    name: string;
+    description: string;
+    parentServiceId?: string;
+    imageUrl?: string | null;
+  }) => {
+    const query = new URLSearchParams({
+      mode: 'edit',
+      type: params.type,
+      id: params.id,
+      title: params.title,
+      name: params.name,
+      description: params.description,
     });
-  }, [services, searchTerm]);
 
-  const resetServiceForm = () => {
-    setEditingServiceId(null);
-    setModalEntityType('service');
-    setSelectedParentServiceId('');
-    setServiceFormData(EMPTY_SERVICE_FORM);
-    setServiceFormError('');
-  };
-
-  const closeServiceModal = () => {
-    setShowServiceModal(false);
-    resetServiceForm();
-  };
-
-  const openCreateServiceModal = () => {
-    resetServiceForm();
-    setShowServiceModal(true);
-  };
-
-  const openCreateSubServiceModal = () => {
-    resetServiceForm();
-    setModalEntityType('subservice');
-    setSelectedParentServiceId(services[0]?.id ?? '');
-    setShowServiceModal(true);
-  };
-
-  const handleServiceInputChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setServiceFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleServiceImageChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] ?? null;
-    setServiceFormData((prev) => ({
-      ...prev,
-      image: file,
-    }));
-  };
-
-  const createService = async (payload: ServiceFormState) => {
-    await axiosInstance.post('/services', buildServiceFormData(payload), {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-  };
-
-  const updateService = async (id: string, payload: ServiceFormState) => {
-    const url = `/services/${id}`;
-    const config = { headers: { 'Content-Type': 'multipart/form-data' } };
-
-    try {
-      await axiosInstance.put(url, buildServiceFormData(payload), config);
-      return;
-    } catch (error) {
-      const status = getStatusCode(error);
-      if (!status || !FALLBACK_UPDATE_STATUS_CODES.includes(status)) {
-        throw error;
-      }
+    if (params.parentServiceId) {
+      query.set('parentServiceId', params.parentServiceId);
+    }
+    if (params.imageUrl) {
+      query.set('imageUrl', params.imageUrl);
     }
 
-    try {
-      await axiosInstance.patch(url, buildServiceFormData(payload), config);
-      return;
-    } catch (error) {
-      const status = getStatusCode(error);
-      if (!status || !FALLBACK_UPDATE_STATUS_CODES.includes(status)) {
-        throw error;
-      }
-    }
-
-    await axiosInstance.post(url, buildServiceFormData(payload, true), config);
-  };
-
-  const handleSaveService = async () => {
-    if (serviceSaving) return;
-
-    const isCreatingSubServiceFromModal =
-      !editingServiceId && modalEntityType === 'subservice';
-
-    if (isCreatingSubServiceFromModal && !selectedParentServiceId) {
-      setServiceFormError('Please choose a main service.');
-      return;
-    }
-
-    const title = serviceFormData.title.trim();
-    const name = serviceFormData.name.trim();
-    const description = serviceFormData.description.trim();
-    if (!title || !name || !description) {
-      setServiceFormError('Title, service name, and description are required.');
-      return;
-    }
-
-    const payload: ServiceFormState = {
-      ...serviceFormData,
-      title,
-      name,
-      description,
-    };
-
-    setServiceSaving(true);
-    setServiceFormError('');
-
-    try {
-      if (isCreatingSubServiceFromModal) {
-        await createSubService(selectedParentServiceId, payload);
-      } else if (editingServiceId) {
-        await updateService(editingServiceId, payload);
-      } else {
-        await createService(payload);
-      }
-
-      await fetchServices();
-      if (isCreatingSubServiceFromModal && expandedServiceId === selectedParentServiceId) {
-        await fetchSubServicesByService(selectedParentServiceId);
-      }
-      closeServiceModal();
-    } catch (error) {
-      setServiceFormError(
-        getErrorMessage(
-          error,
-          isCreatingSubServiceFromModal
-            ? 'Failed to add sub service. Please try again.'
-            : editingServiceId
-            ? 'Failed to update service. Please try again.'
-            : 'Failed to add service. Please try again.',
-        ),
-      );
-    } finally {
-      setServiceSaving(false);
-    }
-  };
-
-  const handleDeleteService = async (id: string) => {
-    if (!confirm('Delete this service?')) return;
-
-    try {
-      await axiosInstance.patch(`/services/${id}/soft-delete`);
-      await fetchServices();
-    } catch (error) {
-      setListError(getErrorMessage(error, 'Failed to delete service.'));
-    }
+    router.push(`/admin/services/create?${query.toString()}`);
   };
 
   const handleEditService = (service: Service) => {
-    setServiceFormData({
+    navigateToEditPage({
+      type: 'service',
+      id: service.id,
       title: service.title,
       name: service.name,
       description: service.description,
-      image: null,
+      imageUrl: service.imageUrl,
     });
-    setModalEntityType('service');
-    setSelectedParentServiceId('');
-    setServiceFormError('');
-    setEditingServiceId(service.id);
-    setShowServiceModal(true);
+  };
+
+  const handleEditSubService = (subService: SubService) => {
+    navigateToEditPage({
+      type: 'subservice',
+      id: subService.id,
+      title: subService.title,
+      name: subService.name,
+      description: subService.description,
+      parentServiceId: subService.serviceId,
+      imageUrl: subService.imageUrl,
+    });
+  };
+
+  const toggleServiceStatus = async (serviceId: string, nextActive: boolean) => {
+    if (statusUpdatingByService[serviceId]) return;
+
+    setStatusUpdatingByService((prev) => ({ ...prev, [serviceId]: true }));
+    setListError('');
+
+    const previousServices = services;
+    setServices((prev) =>
+      prev.map((service) =>
+        service.id === serviceId ? { ...service, isActive: nextActive } : service,
+      ),
+    );
+
+    try {
+      if (nextActive) {
+        try {
+          await axiosInstance.patch(`/services/${serviceId}/restore`);
+        } catch {
+          await axiosInstance.post(`/services/${serviceId}/restore`);
+        }
+      } else {
+        try {
+          await axiosInstance.patch(`/services/${serviceId}/soft-delete`);
+        } catch {
+          await axiosInstance.post(`/services/${serviceId}/soft-delete`);
+        }
+      }
+    } catch (error) {
+      setServices(previousServices);
+      setListError(
+        getErrorMessage(
+          error,
+          nextActive
+            ? 'Failed to activate service. Please try again.'
+            : 'Failed to deactivate service. Please try again.',
+        ),
+      );
+    } finally {
+      setStatusUpdatingByService((prev) => {
+        const next = { ...prev };
+        delete next[serviceId];
+        return next;
+      });
+    }
   };
 
   const fetchSubServicesByService = async (serviceId: string) => {
@@ -385,14 +296,12 @@ export default function ServicesPage() {
           service.id === serviceId ? { ...service, subServices: normalized } : service,
         ),
       );
-      return normalized;
     } catch (error) {
       setSubServicesErrorByService((prev) => ({
         ...prev,
         [serviceId]: getErrorMessage(error, 'Failed to load sub services.'),
       }));
       setSubServicesByService((prev) => ({ ...prev, [serviceId]: [] }));
-      return [];
     } finally {
       setSubServicesLoadingByService((prev) => ({ ...prev, [serviceId]: false }));
     }
@@ -408,11 +317,320 @@ export default function ServicesPage() {
     void fetchSubServicesByService(serviceId);
   };
 
-  const createSubService = async (serviceId: string, payload: ServiceFormState) => {
-    await axiosInstance.post('/services', buildCreateSubServiceFormData(serviceId, payload), {
-      headers: { 'Content-Type': 'multipart/form-data' },
+  const tableRows = useMemo<ServiceTableRow[]>(() => {
+    const rows: ServiceTableRow[] = [];
+
+    services.forEach((service) => {
+      const isExpanded = expandedServiceId === service.id;
+      const subServices = subServicesByService[service.id] ?? service.subServices;
+      const subServicesLoading = subServicesLoadingByService[service.id] ?? false;
+      const subServicesError = subServicesErrorByService[service.id] ?? '';
+
+      rows.push({
+        id: `service-${service.id}`,
+        rowKind: 'service',
+        serviceId: service.id,
+        entityId: service.id,
+        title: service.title,
+        name: service.name,
+        slug: service.slug,
+        imageUrl: service.imageUrl,
+        description: service.description,
+        isActive: service.isActive,
+        isExpanded,
+      });
+
+      if (!isExpanded) {
+        return;
+      }
+
+      if (subServicesLoading) {
+        rows.push({
+          id: `service-${service.id}-loading`,
+          rowKind: 'meta',
+          serviceId: service.id,
+          title: '',
+          name: '',
+          slug: '',
+          description: 'Loading sub services...',
+        });
+        return;
+      }
+
+      if (subServicesError) {
+        rows.push({
+          id: `service-${service.id}-error`,
+          rowKind: 'meta',
+          serviceId: service.id,
+          title: '',
+          name: '',
+          slug: '',
+          description: subServicesError,
+        });
+        return;
+      }
+
+      if (subServices.length === 0) {
+        rows.push({
+          id: `service-${service.id}-empty`,
+          rowKind: 'meta',
+          serviceId: service.id,
+          title: '',
+          name: '',
+          slug: '',
+          description: 'No sub services found.',
+        });
+        return;
+      }
+
+      subServices.forEach((subService, index) => {
+        rows.push({
+          id: `subservice-${subService.id}`,
+          rowKind: 'subservice',
+          serviceId: service.id,
+          parentServiceId: subService.serviceId,
+          entityId: subService.id,
+          title: subService.title,
+          name: subService.name,
+          slug: subService.slug,
+          imageUrl: subService.imageUrl,
+          description: subService.description,
+          isActive: subService.isActive,
+          subIndex: index + 1,
+        });
+      });
     });
-  };
+
+    return rows;
+  }, [
+    expandedServiceId,
+    services,
+    subServicesByService,
+    subServicesErrorByService,
+    subServicesLoadingByService,
+  ]);
+
+  const columns: Column<ServiceTableRow>[] = [
+      {
+        key: 'name',
+        label: 'Name',
+        sortable: true,
+        render: (_value, row) => {
+          if (row.rowKind === 'meta') {
+            return <span className="pl-8 text-sm text-slate-500">{row.description}</span>;
+          }
+
+          if (row.rowKind === 'subservice') {
+            return (
+              <div className="flex min-w-[260px] items-center gap-3 pl-8">
+                <span className="w-6 text-sm text-slate-500">{row.subIndex}</span>
+                {row.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={row.imageUrl}
+                    alt={getLabel(row.title, row.name)}
+                    className="h-10 w-10 rounded-xl border border-slate-200 object-cover"
+                  />
+                ) : (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+                    {getAvatarText(row.title, row.name)}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-slate-900">{getLabel(row.title, row.name)}</p>
+                  <p className="text-xs text-slate-500">Sub Service</p>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div className="flex min-w-[260px] items-center gap-3">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleToggleAccordion(row.serviceId);
+                }}
+                className="rounded-md p-1.5 text-slate-700 hover:bg-slate-100"
+                aria-label={row.isExpanded ? 'Collapse sub services' : 'Expand sub services'}
+              >
+                {row.isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              </button>
+              {row.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={row.imageUrl}
+                  alt={getLabel(row.title, row.name)}
+                  className="h-10 w-10 rounded-xl border border-slate-200 object-cover"
+                />
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-xs font-semibold text-slate-600">
+                  {getAvatarText(row.title, row.name)}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-slate-900">{getLabel(row.title, row.name)}</p>
+                <p className="text-xs text-slate-500">Service</p>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'slug',
+        label: 'Slug',
+        sortable: true,
+        render: (value, row) =>
+          row.rowKind === 'meta' ? (
+            '-'
+          ) : (
+            <span className="inline-flex rounded-md bg-slate-100 px-2.5 py-1 font-mono text-xs text-slate-700">
+              {value}
+            </span>
+          ),
+      },
+      {
+        key: 'description',
+        label: 'Description',
+        sortable: true,
+        render: (value, row) =>
+          row.rowKind === 'meta' ? (
+            <span className="text-sm text-slate-500">{value}</span>
+          ) : (
+            <span className="line-clamp-1 text-slate-600">{getDescription(String(value ?? ''))}</span>
+          ),
+      },
+      {
+        key: 'isActive',
+        label: 'Status',
+        sortable: true,
+        render: (_value, row) => {
+          if (row.rowKind === 'meta' || typeof row.isActive !== 'boolean') {
+            return '-';
+          }
+
+          const isServiceRow = row.rowKind === 'service';
+          const isUpdating = isServiceRow ? !!statusUpdatingByService[row.serviceId] : false;
+
+          return (
+            <div className="flex items-center gap-2">
+              {isServiceRow ? (
+                <button
+                  type="button"
+                  onClick={() => void toggleServiceStatus(row.serviceId, !row.isActive)}
+                  disabled={isUpdating}
+                  aria-busy={isUpdating}
+                  className={`inline-flex h-6 w-10 items-center rounded-full p-1 transition-opacity ${
+                    row.isActive ? 'bg-slate-900' : 'bg-slate-300'
+                  } ${isUpdating ? 'cursor-not-allowed opacity-60' : ''}`}
+                >
+                  <span
+                    className={`h-4 w-4 rounded-full bg-white transition ${
+                      row.isActive ? 'ml-auto' : ''
+                    }`}
+                  />
+                </button>
+              ) : (
+                <span
+                  className={`inline-flex h-6 w-10 items-center rounded-full p-1 ${
+                    row.isActive ? 'bg-slate-900' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`h-4 w-4 rounded-full bg-white transition ${
+                      row.isActive ? 'ml-auto' : ''
+                    }`}
+                  />
+                </span>
+              )}
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                  row.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {row.isActive ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'actions',
+        label: 'Actions',
+        render: (_value, row) => {
+          if (row.rowKind === 'meta') {
+            return '-';
+          }
+
+          if (row.rowKind === 'subservice') {
+            const subService: SubService = {
+              id: row.entityId ?? '',
+              serviceId: row.parentServiceId ?? row.serviceId,
+              title: row.title,
+              name: row.name,
+              slug: row.slug,
+              imageUrl: row.imageUrl ?? null,
+              description: row.description,
+              isActive: row.isActive ?? true,
+            };
+
+            return (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleEditSubService(subService)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  View
+                </button>
+                {subService.isActive && (
+                  <button
+                    type="button"
+                    onClick={() => handleEditSubService(subService)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
+            );
+          }
+
+          const service: Service = {
+            id: row.entityId ?? '',
+            title: row.title,
+            name: row.name,
+            slug: row.slug,
+            imageUrl: row.imageUrl ?? null,
+            description: row.description,
+            isActive: row.isActive ?? true,
+            subServices: [],
+          };
+
+          return (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleEditService(service)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                View
+              </button>
+              {service.isActive && (
+                <button
+                  type="button"
+                  onClick={() => handleEditService(service)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Edit
+                </button>
+              )}
+            </div>
+          );
+        },
+      },
+  ];
 
   return (
     <div className="p-6">
@@ -423,32 +641,13 @@ export default function ServicesPage() {
         <h1 className="text-3xl font-bold">Services</h1>
       </div>
 
-      <div className="mb-6 flex gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-3 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search services..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-lg border py-2 pl-10 pr-4"
-          />
-        </div>
-
+      <div className="mb-6 flex justify-end">
         <button
-          onClick={openCreateServiceModal}
+          onClick={() => router.push('/admin/services/create')}
           className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white"
         >
           <Plus size={18} />
-          Add Service
-        </button>
-
-        <button
-          onClick={openCreateSubServiceModal}
-          className="flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-white"
-        >
-          <Plus size={18} />
-          Add Sub Service
+          Create Service
         </button>
       </div>
 
@@ -458,274 +657,12 @@ export default function ServicesPage() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border bg-white">
-        {loading ? (
-          <div className="p-6 text-center">Loading services...</div>
-        ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="border-b bg-gray-50">
-                <th className="p-4 text-left">S.No</th>
-                <th className="p-4 text-left">Service</th>
-                <th className="p-4 text-left">Sub Services</th>
-                <th className="p-4 text-left">Status</th>
-                <th className="p-4 text-center">Actions</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredServices.map((service, index) => {
-                const isExpanded = expandedServiceId === service.id;
-                const subServices = subServicesByService[service.id] ?? service.subServices;
-                const subServicesLoading = subServicesLoadingByService[service.id] ?? false;
-                const subServicesError = subServicesErrorByService[service.id] ?? '';
-
-                return (
-                  <Fragment key={service.id}>
-                    <tr className="border-b">
-                      <td className="p-4">{index + 1}</td>
-
-                      <td className="p-4">
-                        <p className="font-bold">{service.title}</p>
-                        <p className="font-semibold">{service.name}</p>
-                        <p className="text-sm text-gray-600">{service.description}</p>
-                        <p className="text-xs text-gray-500">Service ID: {service.id}</p>
-                      </td>
-
-                      <td className="p-4">{subServices.length}</td>
-
-                      <td className="p-4">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs ${
-                            service.isActive
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-600'
-                          }`}
-                        >
-                          {service.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-
-                      <td className="p-4">
-                        <div className="flex justify-center gap-2">
-                          <button
-                            onClick={() => handleToggleAccordion(service.id)}
-                            className="flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700"
-                          >
-                            {isExpanded ? 'Hide' : 'Sub Services'}
-                            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                          </button>
-
-                          <button
-                            onClick={() => handleEditService(service)}
-                            className="rounded bg-blue-100 p-2 text-blue-600"
-                          >
-                            <Pencil size={16} />
-                          </button>
-
-                          <button
-                            onClick={() => handleDeleteService(service.id)}
-                            className="rounded bg-red-100 p-2 text-red-600"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-
-                    {isExpanded && (
-                      <tr className="border-b bg-slate-50/60">
-                        <td colSpan={5} className="p-4">
-                          <div className="rounded-lg border bg-white p-4">
-                            <h3 className="mb-3 text-base font-semibold">Sub Services</h3>
-
-                            {subServicesError && (
-                              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                                {subServicesError}
-                              </div>
-                            )}
-
-                            <div className="mt-4 overflow-hidden rounded-lg border">
-                              {subServicesLoading ? (
-                                <div className="p-4 text-sm text-gray-600">Loading sub services...</div>
-                              ) : subServices.length === 0 ? (
-                                <div className="p-4 text-sm text-gray-600">No sub services found.</div>
-                              ) : (
-                                <table className="w-full">
-                                  <thead>
-                                    <tr className="border-b bg-gray-50">
-                                      <th className="p-3 text-left text-xs">Title</th>
-                                      <th className="p-3 text-left text-xs">Name</th>
-                                      <th className="p-3 text-left text-xs">Description</th>
-                                      <th className="p-3 text-left text-xs">Status</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {subServices.map((subService) => (
-                                      <tr key={subService.id} className="border-b">
-                                        <td className="p-3 text-sm">
-                                          <p className="font-medium">{subService.title}</p>
-                                          <p className="text-xs text-gray-500">ID: {subService.id}</p>
-                                        </td>
-                                        <td className="p-3 text-sm">{subService.name}</td>
-                                        <td className="p-3 text-sm text-gray-600">
-                                          {subService.description}
-                                        </td>
-                                        <td className="p-3 text-sm">
-                                          <span
-                                            className={`rounded-full px-2 py-1 text-xs ${
-                                              subService.isActive
-                                                ? 'bg-green-100 text-green-700'
-                                                : 'bg-red-100 text-red-600'
-                                            }`}
-                                          >
-                                            {subService.isActive ? 'Active' : 'Inactive'}
-                                          </span>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-
-              {filteredServices.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="p-6 text-center text-sm text-gray-500">
-                    No services found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {showServiceModal && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-6">
-            <h2 className="mb-4 text-xl font-bold">
-              {editingServiceId
-                ? 'Edit Service'
-                : modalEntityType === 'subservice'
-                  ? 'Add Sub Service'
-                  : 'Add Service'}
-            </h2>
-
-            <div className="space-y-4">
-              {!editingServiceId && (
-                <div>
-                  <p className="mb-1 text-xs font-medium text-slate-600">Create Type</p>
-                  <select
-                    value={modalEntityType}
-                    onChange={(e) => {
-                      const nextType = e.target.value as 'service' | 'subservice';
-                      setModalEntityType(nextType);
-                      setServiceFormError('');
-                      if (nextType === 'subservice' && !selectedParentServiceId) {
-                        setSelectedParentServiceId(services[0]?.id ?? '');
-                      }
-                      if (nextType === 'service') {
-                        setSelectedParentServiceId('');
-                      }
-                    }}
-                    className="w-full rounded-lg border px-4 py-2"
-                  >
-                    <option value="service">Main Service</option>
-                    <option value="subservice">Sub Service</option>
-                  </select>
-                </div>
-              )}
-
-              {!editingServiceId && modalEntityType === 'subservice' && (
-                <div>
-                  <p className="mb-1 text-xs font-medium text-slate-600">Main Service</p>
-                  <select
-                    value={selectedParentServiceId}
-                    onChange={(e) => setSelectedParentServiceId(e.target.value)}
-                    className="w-full rounded-lg border px-4 py-2"
-                  >
-                    <option value="">Select Main Service</option>
-                    {services.map((service) => (
-                      <option key={service.id} value={service.id}>
-                        {service.title} - {service.name} ({service.id})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <input
-                name="title"
-                value={serviceFormData.title}
-                onChange={handleServiceInputChange}
-                placeholder="Title"
-                className="w-full rounded-lg border px-4 py-2"
-              />
-
-              <input
-                name="name"
-                value={serviceFormData.name}
-                onChange={handleServiceInputChange}
-                placeholder={modalEntityType === 'subservice' ? 'Sub Service Name' : 'Service Name'}
-                className="w-full rounded-lg border px-4 py-2"
-              />
-
-              <textarea
-                name="description"
-                value={serviceFormData.description}
-                onChange={handleServiceInputChange}
-                placeholder="Description"
-                rows={4}
-                className="w-full rounded-lg border px-4 py-2"
-              />
-
-              <input type="file" accept="image/*" onChange={handleServiceImageChange} />
-
-              {serviceImagePreview && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={serviceImagePreview} alt="Selected service" className="h-24 rounded" />
-              )}
-            </div>
-
-            {serviceFormError && (
-              <p className="mt-4 text-sm font-medium text-red-600">{serviceFormError}</p>
-            )}
-
-            <div className="mt-6 flex gap-3">
-              <button
-                onClick={() => void handleSaveService()}
-                disabled={serviceSaving}
-                className="flex-1 rounded-lg bg-blue-600 py-2 text-white disabled:opacity-60"
-              >
-                {serviceSaving
-                  ? editingServiceId
-                    ? 'Saving...'
-                    : 'Adding...'
-                  : editingServiceId
-                    ? 'Save'
-                    : modalEntityType === 'subservice'
-                      ? 'Add Sub Service'
-                      : 'Add Service'}
-              </button>
-
-              <button
-                onClick={closeServiceModal}
-                disabled={serviceSaving}
-                className="flex-1 rounded-lg border py-2 disabled:opacity-60"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
+      {loading ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+          Loading services...
         </div>
+      ) : (
+        <DataTable data={tableRows} columns={columns} />
       )}
     </div>
   );
