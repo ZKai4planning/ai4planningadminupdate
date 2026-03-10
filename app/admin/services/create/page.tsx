@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Suspense,
   useEffect,
   useMemo,
   useRef,
@@ -117,7 +118,7 @@ const buildUpdateFormData = (
   return data;
 };
 
-export default function CreateServicePage() {
+function CreateServicePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -647,5 +648,21 @@ export default function CreateServicePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CreateServicePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-6 p-2 md:p-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-sm text-slate-500">Loading service form...</p>
+          </div>
+        </div>
+      }
+    >
+      <CreateServicePageContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronDown, ChevronRight, Plus, Zap } from 'lucide-react';
 import axiosInstance from '@/app/lib/axiosinstance';
@@ -131,7 +131,7 @@ const getLabel = (title: string, name: string) => title || name || 'Untitled';
 const getDescription = (description: string) => description || 'No description';
 const getAvatarText = (title: string, name: string) => (title || name || 'S').charAt(0).toUpperCase();
 
-export default function ServicesPage() {
+function ServicesPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setToast } = useAdminToast();
@@ -764,5 +764,21 @@ export default function ServicesPage() {
         <DataTable data={tableRows} columns={columns} />
       )}
     </div>
+  );
+}
+
+export default function ServicesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-6">
+          <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+            Loading services...
+          </div>
+        </div>
+      }
+    >
+      <ServicesPageContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, ChevronDown, Plus } from 'lucide-react';
 import axiosInstance from '@/app/lib/axiosinstance';
@@ -70,7 +70,7 @@ const hasAnyNextCardInput = (nextCard: StageNextCard) =>
 const formatStageLikeObject = (stage: Omit<StageDefinition, 'id' | 'isActive'>) =>
   JSON.stringify(buildProjectStagePayload(stage), null, 2);
 
-export default function CreateProjectStagePage() {
+function CreateProjectStagePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const iconDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -468,5 +468,21 @@ export default function CreateProjectStagePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CreateProjectStagePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-6 p-2 md:p-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-sm text-slate-500">Loading project stage form...</p>
+          </div>
+        </div>
+      }
+    >
+      <CreateProjectStagePageContent />
+    </Suspense>
   );
 }
