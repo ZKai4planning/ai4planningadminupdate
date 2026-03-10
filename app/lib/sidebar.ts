@@ -49,6 +49,12 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
     href: "/admin/services"
   },
   {
+    id: "stages",
+    label: "Project Stages",
+    icon: FiLayers,
+    href: "/admin/project-stages"
+  },
+  {
     id: "clients",
     label: "Clients",
     icon: FiCheckSquare,
