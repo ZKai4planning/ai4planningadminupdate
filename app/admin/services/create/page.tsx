@@ -342,10 +342,7 @@ export default function CreateServicePage() {
       setServiceFormError('Title, service name, and description are required.');
       return;
     }
-if (!/^[A-Za-z\s]+$/.test(title)) {
-  setServiceFormError('Title can contain only letters and spaces.');
-  return;
-}
+
     if (isSubService && !selectedParentServiceId) {
       setServiceFormError('Please choose a parent service.');
       return;

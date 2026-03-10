@@ -7,6 +7,7 @@ import { DashboardFooter } from '@/components/Footer';
 import { useMediaQuery } from '../lib/hooks/useMediaQuery';
 import GlobalCommandPalette from '@/components/admin/GlobalCommandPalette';
 import AdminNotificationCenter from '@/components/admin/AdminNotificationCenter';
+import { AdminToastProvider } from '@/components/admin/AdminToastProvider';
 
 
 export default function AdminLayout({
@@ -18,37 +19,39 @@ export default function AdminLayout({
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="relative flex min-h-screen w-full bg-slate-50">
-      <div className="pointer-events-none absolute inset-0 -z-0">
-      
-      </div>
-      {/* Sidebar */}
-      <Sidebar
-        collapsed={collapsed}
-        onToggle={() => setCollapsed(p => !p)}
-        onGetStarted={() => {}}
-        isOverlay={!isLaptopUp}
-      />
-
-      {/* Main Area */}
-      <main className="relative z-10 flex flex-col flex-1 min-w-0">
-      
-
-        {/* Page Content */}
-        <div className="flex-1 px-4 pb-4 pt-16 md:px-8 md:pb-8 md:pt-20 animate-fadeIn">
-          <div className="max-w-[1600px] mx-auto">
-            {children}
-          </div>
+    <AdminToastProvider>
+      <div className="relative flex min-h-screen w-full bg-slate-50">
+        <div className="pointer-events-none absolute inset-0 -z-0">
+        
         </div>
+        {/* Sidebar */}
+        <Sidebar
+          collapsed={collapsed}
+          onToggle={() => setCollapsed(p => !p)}
+          onGetStarted={() => {}}
+          isOverlay={!isLaptopUp}
+        />
 
-        {/* Footer */}
-        <DashboardFooter />
-      </main>
+        {/* Main Area */}
+        <main className="relative z-10 flex flex-col flex-1 min-w-0">
+        
 
-      {/* Floating Help Widget */}
-      <HelpWidget />
-      <GlobalCommandPalette />
-      <AdminNotificationCenter />
-    </div>
+          {/* Page Content */}
+          <div className="flex-1 px-4 pb-4 pt-16 md:px-8 md:pb-8 md:pt-20 animate-fadeIn">
+            <div className="max-w-[1600px] mx-auto">
+              {children}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <DashboardFooter />
+        </main>
+
+        {/* Floating Help Widget */}
+        <HelpWidget />
+        <GlobalCommandPalette />
+        <AdminNotificationCenter />
+      </div>
+    </AdminToastProvider>
   );
 }

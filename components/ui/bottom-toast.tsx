@@ -54,10 +54,10 @@ export default function BottomToast({
   const toastType = toast.type ?? 'info';
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-40 -mr-[650px] z-[60] flex justify-center px-4">
+    <div className="pointer-events-none fixed bottom-6 right-4 z-[60]">
       <div
         role="alert"
-        className={`pointer-events-auto flex w-full max-w-xl items-start gap-3 rounded-xl border px-4 py-3 shadow-lg ${getToastClasses(
+        className={`pointer-events-auto flex w-[min(100vw-2rem,36rem)] items-start gap-3 rounded-xl border px-4 py-3 shadow-lg ${getToastClasses(
           toastType,
         )}`}
       >

@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronDown, ChevronRight, Plus, Zap } from 'lucide-react';
 import axiosInstance from '@/app/lib/axiosinstance';
 import DataTable, { Column } from '@/components/datatable';
-import BottomToast, { type ToastPayload, type ToastType } from '@/components/ui/bottom-toast';
+import { type ToastType } from '@/components/ui/bottom-toast';
+import { useAdminToast } from '@/components/admin/AdminToastProvider';
 
 type SubService = {
   id: string;
@@ -133,12 +134,15 @@ const getAvatarText = (title: string, name: string) => (title || name || 'S').ch
 export default function ServicesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { setToast } = useAdminToast();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState<ToastPayload | null>(null);
   const [statusUpdatingByService, setStatusUpdatingByService] = useState<Record<string, boolean>>(
     {},
   );
+  const [statusUpdatingBySubService, setStatusUpdatingBySubService] = useState<
+    Record<string, boolean>
+  >({});
 
   const [expandedServiceId, setExpandedServiceId] = useState<string | null>(null);
   const [subServicesByService, setSubServicesByService] = useState<Record<string, SubService[]>>({});
@@ -289,12 +293,83 @@ export default function ServicesPage() {
     }
   };
 
+  const toggleSubServiceStatus = async (
+    subServiceId: string,
+    parentServiceId: string,
+    nextActive: boolean,
+  ) => {
+    if (!subServiceId || statusUpdatingBySubService[subServiceId]) return;
+
+    setStatusUpdatingBySubService((prev) => ({ ...prev, [subServiceId]: true }));
+
+    const previousServices = services;
+    const previousSubServicesByService = subServicesByService;
+
+    setServices((prev) =>
+      prev.map((service) => ({
+        ...service,
+        subServices: service.subServices.map((subService) =>
+          subService.id === subServiceId ? { ...subService, isActive: nextActive } : subService,
+        ),
+      })),
+    );
+    setSubServicesByService((prev) => {
+      const scoped = prev[parentServiceId];
+      if (!scoped) return prev;
+
+      return {
+        ...prev,
+        [parentServiceId]: scoped.map((subService) =>
+          subService.id === subServiceId ? { ...subService, isActive: nextActive } : subService,
+        ),
+      };
+    });
+
+    try {
+      if (nextActive) {
+        await axiosInstance.patch(`/subservices/${subServiceId}/restore`);
+      } else {
+        await axiosInstance.patch(`/subservices/${subServiceId}/soft-delete`);
+      }
+
+      setToast({
+        type: 'success',
+        message: nextActive
+          ? 'Sub service activated successfully.'
+          : 'Sub service deactivated successfully.',
+      });
+    } catch (error) {
+      setServices(previousServices);
+      setSubServicesByService(previousSubServicesByService);
+      setToast({
+        type: 'error',
+        message: getErrorMessage(
+          error,
+          nextActive
+            ? 'Failed to activate sub service. Please try again.'
+            : 'Failed to deactivate sub service. Please try again.',
+        ),
+      });
+    } finally {
+      setStatusUpdatingBySubService((prev) => {
+        const next = { ...prev };
+        delete next[subServiceId];
+        return next;
+      });
+    }
+  };
+
   const fetchSubServicesByService = async (serviceId: string) => {
     try {
       setSubServicesLoadingByService((prev) => ({ ...prev, [serviceId]: true }));
       setSubServicesErrorByService((prev) => ({ ...prev, [serviceId]: '' }));
 
-      const res = await axiosInstance.get(`/subservices/service/${serviceId}`);
+      let res;
+      try {
+        res = await axiosInstance.get(`/subservices/service/${serviceId}?includeDeleted=true`);
+      } catch {
+        res = await axiosInstance.get(`/subservices/service/${serviceId}`);
+      }
       const payload = (res.data?.data ?? res.data ?? []) as ApiSubService[];
       const normalized = Array.isArray(payload)
         ? payload
@@ -491,7 +566,7 @@ export default function ServicesPage() {
       },
       {
         key: 'slug',
-        label: 'Slug',
+        label: 'Service Name',
         sortable: true,
         render: (value, row) =>
           row.rowKind === 'meta' ? (
@@ -523,7 +598,13 @@ export default function ServicesPage() {
           }
 
           const isServiceRow = row.rowKind === 'service';
-          const isUpdating = isServiceRow ? !!statusUpdatingByService[row.serviceId] : false;
+          const isSubServiceRow = row.rowKind === 'subservice';
+          const subServiceId = row.entityId ?? '';
+          const isServiceUpdating = isServiceRow ? !!statusUpdatingByService[row.serviceId] : false;
+          const isSubServiceUpdating = isSubServiceRow
+            ? !!statusUpdatingBySubService[subServiceId]
+            : false;
+          const isUpdating = isServiceUpdating || isSubServiceUpdating;
 
           return (
             <div className="flex items-center gap-2">
@@ -536,6 +617,28 @@ export default function ServicesPage() {
                   className={`inline-flex h-6 w-10 items-center rounded-full p-1 transition-opacity ${
                     row.isActive ? 'bg-slate-900' : 'bg-slate-300'
                   } ${isUpdating ? 'cursor-not-allowed opacity-60' : ''}`}
+                  >
+                    <span
+                      className={`h-4 w-4 rounded-full bg-white transition ${
+                        row.isActive ? 'ml-auto' : ''
+                      }`}
+                    />
+                  </button>
+              ) : isSubServiceRow ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    void toggleSubServiceStatus(
+                      subServiceId,
+                      row.parentServiceId ?? row.serviceId,
+                      !row.isActive,
+                    )
+                  }
+                  disabled={isUpdating || !subServiceId}
+                  aria-busy={isUpdating}
+                  className={`inline-flex h-6 w-10 items-center rounded-full p-1 transition-opacity ${
+                    row.isActive ? 'bg-slate-900' : 'bg-slate-300'
+                  } ${isUpdating ? 'cursor-not-allowed opacity-60' : ''}`}
                 >
                   <span
                     className={`h-4 w-4 rounded-full bg-white transition ${
@@ -544,17 +647,7 @@ export default function ServicesPage() {
                   />
                 </button>
               ) : (
-                <span
-                  className={`inline-flex h-6 w-10 items-center rounded-full p-1 ${
-                    row.isActive ? 'bg-slate-900' : 'bg-slate-300'
-                  }`}
-                >
-                  <span
-                    className={`h-4 w-4 rounded-full bg-white transition ${
-                      row.isActive ? 'ml-auto' : ''
-                    }`}
-                  />
-                </span>
+                '-'
               )}
               <span
                 className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
@@ -670,8 +763,6 @@ export default function ServicesPage() {
       ) : (
         <DataTable data={tableRows} columns={columns} />
       )}
-
-      <BottomToast toast={toast} onClose={() => setToast(null)} />
     </div>
   );
 }
