@@ -168,7 +168,10 @@ export default function Sidebar({
       {/* Header */}
       <div className="flex items-center justify-between px-4 h-16 border-b border-slate-200">
         <div className="flex items-center gap-3 min-w-0">
-          <Logo collapsed={collapsed && !isOverlay} />
+          {/* <Logo collapsed={collapsed && !isOverlay} /> */}
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white">
+            A
+          </div>
           {!(collapsed && !isOverlay) && (
             <span className="text-base font-semibold text-slate-900 truncate">
               Ai4planning
