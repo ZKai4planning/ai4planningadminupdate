@@ -52,7 +52,7 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
     id: "stages",
     label: "Project Stages",
     icon: FiLayers,
-    href: "/admin/project-stages"
+    href: "/admin/ProjectStages"
   },
   {
     id: "clients",
