@@ -16,6 +16,7 @@ const COMMANDS: CommandItem[] = [
   { id: "clients", label: "Open Clients", href: "/admin/clients" },
   { id: "projects", label: "Open Projects", href: "/admin/projects" },
   { id: "team", label: "Open Team", href: "/admin/team" },
+  { id: "leads", label: "Open Leads", href: "/admin/leads" },
   // { id: "messages", label: "Open Chat", href: "/admin/messages" },
  
 ]

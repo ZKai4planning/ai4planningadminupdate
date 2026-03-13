@@ -73,6 +73,12 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
     href: "/admin/calendar",
   },
   {
+    id: "leads",
+    label: "Leads",
+    icon: FiMessageSquare,
+    href: "/admin/leads",
+  },
+  {
     id: "logout",
     label: "Logout",
     icon: FiLogOut,

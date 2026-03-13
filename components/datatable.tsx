@@ -9,6 +9,7 @@ import { Download, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 interface DataTableProps<T> {
   data: T[]
   columns: Column<T>[]
+  exportFilename?: string
 }
 export type Column<T> = {
   key: keyof T | "sno" | "actions"
@@ -30,6 +31,7 @@ export type Column<T> = {
 export default function DataTable<T extends { id: string | number; isActive?: boolean }>({
   data,
   columns,
+  exportFilename = "employees.csv",
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] =
@@ -102,7 +104,7 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
 
     const a = document.createElement("a")
     a.href = url
-    a.download = "employees.csv"
+    a.download = exportFilename
     a.click()
     URL.revokeObjectURL(url)
   }
