@@ -8,6 +8,7 @@ type LeadRow = {
   name: string
   email: string
   mobile: string
+  service?: string
   consent: boolean
   submitted_at: string
 }
@@ -98,6 +99,7 @@ function decryptLead(row: LeadRow): DecryptedLead {
     name: decryptValue(row.name),
     email: decryptValue(row.email),
     mobile: decryptValue(row.mobile),
+    service: decryptValue(row.service || ""),
   }
 }
 

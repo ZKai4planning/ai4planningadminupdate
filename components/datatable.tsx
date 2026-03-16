@@ -36,8 +36,6 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] =
     useState<"All" | "Active" | "Inactive">("All")
-  const [rowsPerPage, setRowsPerPage] = useState(5)
-  const [currentPage, setCurrentPage] = useState(1)
   const [sortKey, setSortKey] = useState<keyof T | null>(null)
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
 
@@ -81,9 +79,8 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
   }
 
   /* PAGINATION */
-  const totalPages = Math.ceil(sortedData.length / rowsPerPage)
-  const startIndex = (currentPage - 1) * rowsPerPage
-  const visibleData = sortedData.slice(startIndex, startIndex + rowsPerPage)
+  const startIndex = 0
+  const visibleData = sortedData
 
   /* EXPORT */
   const handleExport = () => {
@@ -127,7 +124,6 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
           value={search}
           onChange={(e) => {
             setSearch(e.target.value)
-            setCurrentPage(1)
           }}
           className="border border-slate-200 px-4 py-2.5 rounded-xl w-full sm:w-64 text-sm bg-slate-50/70 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
@@ -137,7 +133,6 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value as any)
-              setCurrentPage(1)
             }}
             className="border border-slate-200 px-4 py-2 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
           >
@@ -232,41 +227,6 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
         </table>
       </div>
 
-      {/* FOOTER */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mt-5 text-sm">
-        <div className="flex items-center gap-2">
-          <span>Rows per page:</span>
-          <select
-            value={rowsPerPage}
-            onChange={(e) => {
-              setRowsPerPage(Number(e.target.value))
-              setCurrentPage(1)
-            }}
-            className="border border-slate-200 px-2 py-1 rounded-lg bg-white"
-          >
-            {[5, 10, 20, 50].map(n => (
-              <option key={n}>{n}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage(p => p - 1)}
-            className="px-3 py-1.5 border border-slate-200 rounded-lg disabled:opacity-50 hover:bg-slate-50"
-          >
-            Prev
-          </button>
-          <button
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage(p => p + 1)}
-            className="px-3 py-1.5 border border-slate-200 rounded-lg disabled:opacity-50 hover:bg-slate-50"
-          >
-            Next
-          </button>
-        </div>
-      </div>
     </div>
   )
 }

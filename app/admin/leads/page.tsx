@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react"
 import DataTable, { Column } from "@/components/datatable"
-import { Mail, Phone, UserCheck } from "lucide-react"
+import { Mail, Phone, UserCheck, Briefcase } from "lucide-react"
 
 type LeadRow = {
   id: number
   name: string
   email: string
   mobile: string
+  service?: string
   consent: boolean
   submitted_at: string
   isActive?: boolean
@@ -100,6 +101,17 @@ export default function LeadsPage() {
       render: (value) => (
         <div className="flex items-center gap-2">
           <Phone className="w-4 h-4 text-slate-400" />
+          <span className="text-slate-700">{value}</span>
+        </div>
+      ),
+    },
+    {
+      key: "service",
+      label: "Service",
+      sortable: true,
+      render: (value) => (
+        <div className="flex items-center gap-2">
+          <Briefcase className="w-4 h-4 text-slate-400" />
           <span className="text-slate-700">{value}</span>
         </div>
       ),
