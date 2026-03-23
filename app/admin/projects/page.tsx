@@ -3,29 +3,15 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import DataTable, { Column } from "@/components/datatable";
 import { mockClients, mockPayments, mockProjects } from "@/app/lib/mock-data";
+import {
+  getProjectRoadmapInsights,
+  journeySteps,
+  type RoadmapInsight,
+} from "@/app/lib/project-roadmap";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ProjectOverview from "@/components/projects/ProjectOverview";
-import ProjectRoadmap, {
-  type RoadmapInsight,
-} from "@/components/projects/ProjectRoadmap";
-
-const journeySteps = [
-  "Service Selection",
-  "Initial payment",
-  "Eligibility Check",
-  "Consultant Assignment",
-  "Project Assigned to Agent Y",
-   "Briefcase Creation",
-  "70% Advance Payment",
-  "Documents shared with Agent X",
-  "30% remaining payment",
-  "Council Submission",
-];
-
-const projectAssignedToAgentYStepIndex = journeySteps.findIndex(
-  (step) => step === "Project Assigned to Agent Y",
-);
+import ProjectRoadmap from "@/components/projects/ProjectRoadmap";
 
 const completedStepsByStatus: Record<string, number> = {
   pending: 0,
@@ -283,9 +269,8 @@ function ProjectsPageContent() {
       return;
     }
 
-    if (projectAssignedToAgentYStepIndex >= 0) {
-      setActiveStep(projectAssignedToAgentYStepIndex);
-    }
+    const completed = getCompletedStepsForProject(selectedProject);
+    setActiveStep(Math.max(0, completed - 1));
   }, [selectedProject, activeProjectTab]);
 
   const selectedClient = useMemo(() => {
@@ -339,171 +324,18 @@ function ProjectsPageContent() {
     if (!selectedProject) {
       return [];
     }
-    const agentX = selectedProject.agentX || "Unassigned";
-    const agentY = selectedProject.agentY || "Unassigned";
-    const architect = selectedProject.architect || "Unassigned";
-    const normalizedServiceType =
-      selectedProject.serviceType.charAt(0).toUpperCase() +
-      selectedProject.serviceType.slice(1);
-    const selectedServiceLabel =
-      selectedProject.selectedService || normalizedServiceType;
-    const selectedSubServiceLabel =
-      selectedProject.selectedSubService || "Not specified";
-
-    return [
-      {
-        title: "Service selection",
-        stage: "Service Intake",
-       
-        summary:
-          "Client session validated and selected service preferences captured.",
-        kpis: [
-          { label: "Service", value: selectedServiceLabel },
-          { label: "Sub Service", value: selectedSubServiceLabel },
-          { label: "Location", value: selectedProject.location },
-          { label: "Service Id", value: selectedProject.serviceId },
-        ],
-        notes: [
-          "Service selected by client",
-          "Sub-service option captured",
-          "Ready for eligibility checks",
-        ],
-      },
-      {
-        title: "Initial payment",
-        stage: "Billing",
-       
-        summary: "Initial payment captured to kick off the project lifecycle.",
-        kpis: [
-          { label: "Paid", value: "39.99" },
-          { label: "Status", value: "On track" },
-        ],
-        notes: ["Payment received"],
-      },
-      {
-        title: "Eligibility check",
-        stage: "Screening",
-       
-        summary:
-          "Initial property details and planning constraints captured for eligibility screening.",
-        kpis: [],
-        notes: [
-          "Questionnaire responses captured",
-          "Constraints recorded for validation",
-          "Ready for consultant review",
-        ],
-      },
-      {
-        title: "Consultant assigned",
-        stage: "Consultation",
-  
-        summary:
-          "Consultant assigned to review scope and coordinate next steps.",
-        kpis: [
-          { label: "Consultant", value: architect },
-          { label: "Team", value: `${agentX} / ${agentY}` },
-          { label: "Handoff", value: "Completed" },
-        ],
-        notes: ["Internal handoff done", "Kickoff completed"],
-      },
-      {
-        title: "Project Assigned to Agent Y",
-        stage: "Cross-team",
-   
-        summary: "Cross-team coordination established for delivery alignment.",
-        kpis: [
-          { label: "Agent X", value: agentX },
-          { label: "Agent Y", value: agentY },
-          { label: "Collaboration", value: "Active" },
-        ],
-        notes: ["Cross-team setup completed", "Dependencies aligned"],
-      },
-      {
-        title: "Briefcase creation",
-        stage: "Handover Package",
-
-        summary:
-          "Execution briefcase is created with all scoped documents, constraints, and handoff notes.",
-        kpis: [
-          { label: "Package", value: "Created" },
-          { label: "Owner", value: agentX },
-          { label: "Shared With", value: agentY },
-        ],
-        notes: [
-          "Handoff brief prepared and versioned",
-          "Supporting documents attached to execution package",
-          "Ready for 70% payment milestone and downstream tasks",
-        ],
-      },
-      {
-        title: "70% payment made",
-        stage: "Billing",
-   
-        summary: "Payment milestone reached, enabling cross-team execution.",
-        kpis: [
-          { label: "Payment", value: "70% paid" },
-          { label: "Phase", value: "Collaboration" },
-          { label: "Risk", value: "Low" },
-        ],
-        notes: ["Milestone achieved", "Execution phase started"],
-      },
-      {
-        title: "Documents shared with Agent X",
-        stage: "Documents",
-
-        summary: "Key documents shared and initial work completed.",
-        kpis: [
-          { label: "Documents", value: `${selectedProject.documents.length}` },
-          {
-            label: "Updated",
-            value: new Date(selectedProject.updatedDate).toLocaleDateString(
-              "en-GB",
-            ),
-          },
-          {
-            label: "Progress",
-            value: `${getProgressForProject(selectedProject)}%`,
-          },
-        ],
-        notes: ["Documents verified", "Work in progress"],
-      },
-      {
-        title: "30% remaining payment",
-        stage: "Billing",
-  
-        summary: "Final payment pending prior to council submission.",
-        kpis: [
-          { label: "Pending", value: "30%" },
-          { label: "Council", value: selectedProject.councilName },
-          { label: "Reference", value: selectedProject.councilReference },
-        ],
-        notes: ["Payment reminder sent", "Awaiting settlement"],
-      },
-      {
-        title: "Submitted to council",
-        stage: "Submission",
-     
-        summary:
-          "Project submitted for approval and awaiting council decision.",
-        kpis: [
-          { label: "Council", value: selectedProject.councilName },
-          { label: "Reference", value: selectedProject.councilReference },
-          {
-            label: "Updated",
-            value: new Date(selectedProject.updatedDate).toLocaleDateString(
-              "en-GB",
-            ),
-          },
-        ],
-        notes: ["Submission completed", "Decision pending"],
-      },
-    ];
+    return getProjectRoadmapInsights({
+      project: selectedProject,
+      progress: getProgressForProject(selectedProject),
+    });
   }, [selectedProject]);
 
   const activeInsight = stepInsights[activeStep];
   const completedStepsCount = selectedStats?.completedSteps ?? 0;
   const nextDueStepIndex =
     completedStepsCount < journeySteps.length ? completedStepsCount : null;
+  const currentStepIndex =
+    nextDueStepIndex ?? Math.max(0, Math.min(completedStepsCount - 1, journeySteps.length - 1));
   const selectedProjectProgress = selectedProject
     ? getProgressForProject(selectedProject)
     : 0;
@@ -649,6 +481,7 @@ function ProjectsPageContent() {
                 journeySteps={journeySteps}
                 completedStepsCount={completedStepsCount}
                 nextDueStepIndex={nextDueStepIndex}
+                currentStepIndex={currentStepIndex}
                 activeStep={activeStep}
                 setActiveStep={setActiveStep}
                 activeInsight={activeInsight}

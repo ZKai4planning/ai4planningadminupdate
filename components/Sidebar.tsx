@@ -1,6 +1,6 @@
 "use client";
 
-import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
+import { FiChevronLeft, FiChevronRight, FiX } from "react-icons/fi";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -36,11 +36,13 @@ export default function Sidebar({
   onToggle,
   onGetStarted,
   isOverlay = false,
+  isOpen = true,
 }: {
   collapsed: boolean;
   onToggle: () => void;
   onGetStarted: () => void;
   isOverlay?: boolean;
+  isOpen?: boolean;
 }) {
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const pathname = usePathname();
@@ -155,14 +157,16 @@ export default function Sidebar({
         "transition-all duration-300 ease-in-out",
         // positioning & height
         isOverlay
-          ? "fixed inset-y-0 left-0 z-40 h-screen"
+          ? "fixed inset-y-0 left-0 z-50 h-dvh w-72 max-w-[85vw] shadow-xl"
           : "sticky top-0 h-screen",
         // width & animation
-        collapsed
-          ? isOverlay
-            ? "-translate-x-full w-64"
-            : "w-20"
-          : "translate-x-0 w-64",
+        isOverlay
+          ? isOpen
+            ? "translate-x-0"
+            : "-translate-x-full"
+          : collapsed
+            ? "w-20"
+            : "w-64",
       )}
     >
       {/* Header */}
@@ -183,6 +187,15 @@ export default function Sidebar({
         {!isOverlay && (
           <button onClick={onToggle} className="p-2 rounded hover:bg-slate-100">
             {collapsed ? <FiChevronRight /> : <FiChevronLeft />}
+          </button>
+        )}
+        {isOverlay && (
+          <button
+            onClick={onToggle}
+            className="rounded-md p-2 text-slate-600 transition hover:bg-slate-100"
+            aria-label="Close sidebar"
+          >
+            <FiX />
           </button>
         )}
       </div>
