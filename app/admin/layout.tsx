@@ -43,12 +43,11 @@ export default function AdminLayout({
         {/* Sidebar */}
         <Sidebar
           collapsed={collapsed}
-          onToggle={() =>
+          onToggle={
             isLaptopUp
-              ? setCollapsed((p) => !p)
-              : setMobileSidebarOpen((p) => !p)
+              ? () => setCollapsed((p) => !p)
+              : () => setMobileSidebarOpen((p) => !p)
           }
-          onGetStarted={() => {}}
           isOverlay={!isLaptopUp}
           isOpen={isLaptopUp ? true : mobileSidebarOpen}
         />
