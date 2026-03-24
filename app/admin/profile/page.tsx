@@ -70,6 +70,23 @@ export default function ProfilePage() {
   const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
+    if (!errorMessage && !successMessage) return;
+
+    const timer = window.setTimeout(() => {
+      setErrorMessage('');
+      setSuccessMessage('');
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [errorMessage, successMessage]);
+
+  const getProfileByUserId = async (resolvedUserId: string, fallbackProfile: ProfileData) => {
+    const response = await axiosInstance.get(`/admin/profile/${resolvedUserId}`);
+    const data = (response?.data?.data ?? response?.data ?? {}) as Record<string, unknown>;
+    return normalizeProfileData(data, fallbackProfile);
+  };
+
+  useEffect(() => {
     let isMounted = true;
 
     const loadProfile = async () => {
@@ -95,9 +112,7 @@ export default function ProfilePage() {
       setErrorMessage('');
 
       try {
-        const response = await axiosInstance.get(`/admin/profile/${resolvedUserId}`);
-        const data = (response?.data?.data ?? response?.data ?? {}) as Record<string, unknown>;
-        const nextProfile = normalizeProfileData(data, fallbackProfile);
+        const nextProfile = await getProfileByUserId(resolvedUserId, fallbackProfile);
         if (!isMounted) return;
         setProfile(nextProfile);
         persistProfileCache(nextProfile);
@@ -135,7 +150,6 @@ export default function ProfilePage() {
   const saveProfileDetails = async () => {
     const payload = {
       name: profile.name.trim(),
-      email: profile.email.trim(),
       phoneNumber: profile.phoneNumber.trim(),
     };
 
@@ -217,11 +231,18 @@ export default function ProfilePage() {
         (typeof data?.picture === 'string' && data.picture) ||
         (typeof data?.url === 'string' && data.url) ||
         '';
-
-      const nextProfile = {
+      const refreshedProfile = await getProfileByUserId(userId, {
         ...profile,
         profilePicture: imageFromApi || profile.profilePicture,
+      });
+      const nextProfile = {
+        ...refreshedProfile,
+        profilePicture: refreshedProfile.profilePicture || imageFromApi || profile.profilePicture,
       };
+
+      if (!nextProfile.profilePicture) {
+        throw new Error('Profile picture upload finished, but no image URL was returned.');
+      }
 
       setProfile(nextProfile);
       setSelectedFile(null);
@@ -345,12 +366,10 @@ export default function ProfilePage() {
               <input
                 type="email"
                 value={profile.email}
-                onChange={(event) =>
-                  setProfile((prev) => ({ ...prev, email: event.target.value }))
-                }
                 placeholder="john@example.com"
                 required
-                className="h-11 w-full rounded-lg border border-slate-300 px-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                disabled
+                className="h-11 w-full rounded-lg border border-slate-300 bg-slate-100 px-3 text-sm text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed"
               />
             </div>
 
