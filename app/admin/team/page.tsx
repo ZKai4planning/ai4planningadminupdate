@@ -76,6 +76,7 @@ type ApiUser = {
   roleName?: string;
   userId?: string;
   createdAt?: string;
+  resetPasswordStatus?: string;
 };
 
 const EMAIL_REGEX =  /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
@@ -106,6 +107,54 @@ const normalizeRegion = (
   return fallback;
 };
 
+const normalizeResetPasswordStatus = (
+  status: string | undefined,
+): TeamMember['resetPasswordStatus'] => {
+  const normalized = status?.toLowerCase();
+  if (normalized === 'pending') return 'pending';
+  if (normalized === 'approved') return 'approved';
+  if (normalized === 'rejected') return 'rejected';
+  return 'none';
+};
+
+const getResetPasswordStatus = (
+  source: Partial<ApiUser> & {
+    passwordRequestStatus?: string;
+    requestStatus?: string;
+    status?: string;
+  },
+) =>
+  normalizeResetPasswordStatus(
+    source.resetPasswordStatus ||
+      source.passwordRequestStatus ||
+      source.requestStatus ||
+      source.status,
+  );
+
+const getResetPasswordStatusLabel = (
+  status: TeamMember['resetPasswordStatus'],
+) => {
+  if (status === 'pending') return 'Pending Request';
+  if (status === 'approved') return 'Approved';
+  if (status === 'rejected') return 'Rejected';
+  return 'None';
+};
+
+const getResetPasswordStatusClasses = (
+  status: TeamMember['resetPasswordStatus'],
+) => {
+  if (status === 'pending') {
+    return 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100';
+  }
+  if (status === 'approved') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  }
+  if (status === 'rejected') {
+    return 'border-rose-200 bg-rose-50 text-rose-700';
+  }
+  return 'border-slate-200 bg-slate-100 text-slate-600';
+};
+
 const mapUserToMember = (
   user: ApiUser,
   fallbackRegion: TeamMember['region'],
@@ -133,6 +182,7 @@ const mapUserToMember = (
     agentCode: `AGT-${agentCodeSource}`,
     isActive: user.isActive ?? true,
     defaultPassword: false,
+    resetPasswordStatus: getResetPasswordStatus(user),
     assignedProjects: 0,
     joinedDate: createdDate,
     createdDate,
@@ -153,6 +203,12 @@ export default function TeamPage() {
   const [statusUpdating, setStatusUpdating] = useState<Record<string, boolean>>(
     {},
   );
+  const [passwordRequestError, setPasswordRequestError] = useState('');
+  const [passwordRequestUpdating, setPasswordRequestUpdating] = useState<
+    Record<string, 'approve' | 'reject' | undefined>
+  >({});
+  const [passwordRequestDialog, setPasswordRequestDialog] =
+    useState<TeamMember | null>(null);
   const [statusConfirm, setStatusConfirm] = useState<{
     member: TeamMember;
     nextActive: boolean;
@@ -407,6 +463,7 @@ if (!/^[A-Za-z\s]+$/.test(name.trim())) {
           mapped.userId ||
           fallbackMember.userId,
         defaultPassword: data?.defaultPassword ?? true,
+        resetPasswordStatus: getResetPasswordStatus(data),
       };
 
       setMembers((prev) => [...prev, newMember]);
@@ -495,6 +552,15 @@ if (!/^[A-Za-z\s]+$/.test(name.trim())) {
               member.userId ||
               member.id,
             isActive: data?.isActive ?? member.isActive,
+            resetPasswordStatus:
+              data && typeof data === 'object'
+                ? getResetPasswordStatus({
+                    ...data,
+                    resetPasswordStatus:
+                      (data as { resetPasswordStatus?: string })
+                        ?.resetPasswordStatus ?? member.resetPasswordStatus,
+                  })
+                : member.resetPasswordStatus,
             createdDate: data?.createdAt
               ? String(data.createdAt).split('T')[0]
               : member.createdDate,
@@ -616,6 +682,90 @@ if (!/^[A-Za-z\s]+$/.test(name.trim())) {
     setStatusConfirm(null);
   };
 
+  const openPasswordRequestDialog = (member: TeamMember) => {
+    if (member.resetPasswordStatus !== 'pending') return;
+
+    const userId = resolveMemberUserId(member);
+    if (!userId) {
+      setPasswordRequestError('User ID is missing for this password request.');
+      return;
+    }
+
+    setPasswordRequestError('');
+    setPasswordRequestDialog(member);
+  };
+
+  const closePasswordRequestDialog = () => {
+    setPasswordRequestDialog(null);
+    setPasswordRequestError('');
+  };
+
+  const handlePasswordRequestAction = async (
+    member: TeamMember,
+    action: 'approve' | 'reject',
+  ) => {
+    if (passwordRequestUpdating[member.id]) return;
+
+    const userId = resolveMemberUserId(member);
+    if (!userId) {
+      setPasswordRequestError('User ID is missing for this password request.');
+      return;
+    }
+
+    setPasswordRequestError('');
+    setPasswordRequestUpdating((prev) => ({ ...prev, [member.id]: action }));
+
+    try {
+      const response = await axiosInstance.post(
+        `/admin/password-requests/${userId}/${action}`,
+      );
+      const data = response?.data?.data ?? response?.data ?? {};
+      const nextStatus = getResetPasswordStatus({
+        ...(data as Record<string, unknown>),
+        status:
+          (data as { status?: string })?.status ||
+          (action === 'approve' ? 'approved' : 'rejected'),
+      });
+
+      setMembers((prev) =>
+        prev.map((item) => {
+          if (item.id !== member.id) return item;
+          const resolvedUserId =
+            (data as { userId?: string; userID?: string; userid?: string })
+              ?.userId ||
+            (data as { userId?: string; userID?: string; userid?: string })
+              ?.userID ||
+            (data as { userId?: string; userID?: string; userid?: string })
+              ?.userid ||
+            item.userId ||
+            item.id;
+
+          return {
+            ...item,
+            userId: resolvedUserId,
+            agentCode: resolvedUserId ? `AGT-${resolvedUserId}` : item.agentCode,
+            resetPasswordStatus: nextStatus,
+          };
+        }),
+      );
+
+      setPasswordRequestDialog(null);
+    } catch (error) {
+      const message =
+        (error as { response?: { data?: { message?: string } }; message?: string })
+          ?.response?.data?.message ||
+        (error as { message?: string })?.message ||
+        `Failed to ${action} the password reset request.`;
+      setPasswordRequestError(message);
+    } finally {
+      setPasswordRequestUpdating((prev) => {
+        const next = { ...prev };
+        delete next[member.id];
+        return next;
+      });
+    }
+  };
+
   const toggleEmailReveal = (id: string) => {
     setRevealedEmails((prev) => ({
       ...prev,
@@ -715,6 +865,37 @@ if (!/^[A-Za-z\s]+$/.test(name.trim())) {
           {row.defaultPassword ? 'Yes' : 'No'}
         </button>
       ),
+    },
+    {
+      key: 'resetPasswordStatus',
+      label: 'Reset Password',
+      render: (_v, row) => {
+        const isPending = row.resetPasswordStatus === 'pending';
+
+        if (isPending) {
+          return (
+            <button
+              type="button"
+              onClick={() => openPasswordRequestDialog(row)}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${getResetPasswordStatusClasses(
+                row.resetPasswordStatus,
+              )}`}
+            >
+              {getResetPasswordStatusLabel(row.resetPasswordStatus)}
+            </button>
+          );
+        }
+
+        return (
+          <span
+            className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getResetPasswordStatusClasses(
+              row.resetPasswordStatus,
+            )}`}
+          >
+            {getResetPasswordStatusLabel(row.resetPasswordStatus)}
+          </span>
+        );
+      },
     },
     {
       key: 'isActive',
@@ -886,9 +1067,9 @@ if (!/^[A-Za-z\s]+$/.test(name.trim())) {
       </div>
 
       <div className="space-y-3 md:hidden">
-        {(loadError || statusError) && (
+        {(loadError || statusError || passwordRequestError) && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {loadError || statusError}
+            {loadError || statusError || passwordRequestError}
           </div>
         )}
         {isLoading && (
@@ -966,6 +1147,25 @@ if (!/^[A-Za-z\s]+$/.test(name.trim())) {
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
                 {getTeamLabel(member.team)}
               </span>
+              {member.resetPasswordStatus === 'pending' ? (
+                <button
+                  type="button"
+                  onClick={() => openPasswordRequestDialog(member)}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getResetPasswordStatusClasses(
+                    member.resetPasswordStatus,
+                  )}`}
+                >
+                  {getResetPasswordStatusLabel(member.resetPasswordStatus)}
+                </button>
+              ) : (
+                <span
+                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getResetPasswordStatusClasses(
+                    member.resetPasswordStatus,
+                  )}`}
+                >
+                  Reset Password: {getResetPasswordStatusLabel(member.resetPasswordStatus)}
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => handleEditAgent(member)}
@@ -984,9 +1184,9 @@ if (!/^[A-Za-z\s]+$/.test(name.trim())) {
       </div>
 
       <div className="hidden md:block">
-        {(loadError || statusError) && (
+        {(loadError || statusError || passwordRequestError) && (
           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {loadError || statusError}
+            {loadError || statusError || passwordRequestError}
           </div>
         )}
         {isLoading ? (
@@ -1145,6 +1345,74 @@ if (!/^[A-Za-z\s]+$/.test(name.trim())) {
               <button
                 onClick={handleCancelStatusChange}
                 className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 font-medium text-slate-900 transition-colors hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {passwordRequestDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl md:p-8">
+            <h2 className="text-xl font-bold text-slate-900">
+              Review Password Reset Request
+            </h2>
+            <p className="mt-3 text-sm text-slate-600">
+              {passwordRequestDialog.name} has requested a password reset. Please
+              review this request and choose whether to approve or reject it.
+            </p>
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm font-semibold text-amber-800">
+                Pending request for {passwordRequestDialog.name}
+              </p>
+              <p className="mt-1 text-sm text-amber-700">
+                Approving will continue the reset password flow for this user.
+                Rejecting will close the request without resetting the password.
+              </p>
+            </div>
+            {passwordRequestError && (
+              <p className="mt-4 text-sm font-medium text-red-600">
+                {passwordRequestError}
+              </p>
+            )}
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() =>
+                  handlePasswordRequestAction(passwordRequestDialog, 'approve')
+                }
+                disabled={Boolean(
+                  passwordRequestUpdating[passwordRequestDialog.id],
+                )}
+                className="flex-1 rounded-lg bg-emerald-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-70"
+              >
+                {passwordRequestUpdating[passwordRequestDialog.id] === 'approve'
+                  ? 'Approving...'
+                  : 'Approve'}
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  handlePasswordRequestAction(passwordRequestDialog, 'reject')
+                }
+                disabled={Boolean(
+                  passwordRequestUpdating[passwordRequestDialog.id],
+                )}
+                className="flex-1 rounded-lg bg-rose-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-rose-700 disabled:opacity-70"
+              >
+                {passwordRequestUpdating[passwordRequestDialog.id] === 'reject'
+                  ? 'Rejecting...'
+                  : 'Reject'}
+              </button>
+              <button
+                type="button"
+                onClick={closePasswordRequestDialog}
+                disabled={Boolean(
+                  passwordRequestUpdating[passwordRequestDialog.id],
+                )}
+                className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 font-medium text-slate-900 transition-colors hover:bg-slate-50 disabled:opacity-70"
               >
                 Cancel
               </button>

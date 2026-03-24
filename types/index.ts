@@ -52,6 +52,7 @@ export interface TeamMember {
   agentCode: string;
   isActive: boolean;
   defaultPassword: boolean;
+  resetPasswordStatus: 'none' | 'pending' | 'approved' | 'rejected';
   assignedProjects: number;
   joinedDate: string;
   createdDate: string;
