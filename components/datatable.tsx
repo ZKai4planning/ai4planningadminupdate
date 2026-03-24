@@ -115,10 +115,10 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
   }
 
   return (
-    <div className="bg-white/95 backdrop-blur rounded-2xl shadow-[0_8px_30px_rgba(15,23,42,0.06)] border border-slate-200 p-6">
+    <div className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-[0_8px_30px_rgba(15,23,42,0.06)] backdrop-blur sm:p-6">
 
       {/* TOP BAR */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-5">
+      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <input
           placeholder="Search..."
           value={search}
@@ -128,7 +128,7 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
           className="border border-slate-200 px-4 py-2.5 rounded-xl w-full sm:w-64 text-sm bg-slate-50/70 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
 
-        <div className="flex flex-wrap gap-3 w-full sm:w-auto sm:justify-end">
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-end lg:w-auto">
           <select
             value={statusFilter}
             onChange={(e) => {
@@ -152,8 +152,8 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
       </div>
 
       {/* TABLE */}
-      <div className="overflow-auto border border-slate-200 rounded-xl">
-        <table className="min-w-[720px] w-full table-auto">
+      <div className="overflow-x-auto rounded-xl border border-slate-200">
+        <table className="min-w-[640px] w-full table-auto lg:min-w-[720px]">
           <thead className="bg-slate-100/90 sticky top-0 backdrop-blur">
             <tr className="border-b border-slate-200">
          {columns.map(col => (

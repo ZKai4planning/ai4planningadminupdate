@@ -16,8 +16,8 @@ export default function HelpWidget() {
     <>
       {/* Help Card */}
       {open && (
-        <div className="fixed bottom-20 right-6 z-50">
-          <div className="w-72 rounded-2xl bg-neutral-900 text-white shadow-2xl p-4">
+        <div className="fixed bottom-20 right-4 z-50 sm:bottom-24 sm:right-6">
+          <div className="w-[calc(100vw-2rem)] max-w-72 rounded-2xl bg-neutral-900 p-4 text-white shadow-2xl">
             {/* Header */}
             <div className="flex items-start justify-between mb-4">
               <div>
@@ -62,7 +62,7 @@ export default function HelpWidget() {
       {/* HELP BUTTON */}
       <button
         onClick={() => setOpen((prev) => !prev)}
-        className="fixed bottom-15 right-6 z-50
+        className="fixed bottom-4 right-4 z-50
         bg-white text-black text-sm px-4 py-2
         rounded-full shadow-lg hover:bg-gray-100"
       >

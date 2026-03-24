@@ -171,9 +171,9 @@ export default function Sidebar({
   return (
     <aside
       className={cn(
-        "bg-white flex flex-col border-r transition-all duration-300",
+        "flex flex-col overflow-hidden border-r bg-white transition-all duration-300",
         isOverlay
-          ? "fixed inset-y-0 left-0 z-50 h-dvh w-72 shadow-xl"
+          ? "fixed inset-y-0 left-0 z-50 h-dvh w-[18rem] max-w-[85vw] shadow-xl"
           : "sticky top-0 h-screen",
         isOverlay
           ? isOpen
@@ -185,29 +185,41 @@ export default function Sidebar({
       )}
     >
       {/* HEADER */}
-      <div className="flex items-center justify-between px-4 h-16 border-b">
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 flex items-center justify-center bg-blue-600 text-white rounded-lg">
+      <div className="flex h-16 shrink-0 items-center justify-between border-b px-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white">
             A
           </div>
-          {!collapsed && <span className="font-semibold">Ai4planning</span>}
+          {!collapsed && (
+            <span className="truncate font-semibold">Ai4planning</span>
+          )}
         </div>
 
         {!isOverlay && (
-          <button onClick={onToggle}>
+          <button
+            type="button"
+            onClick={onToggle}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
             {collapsed ? <FiChevronRight /> : <FiChevronLeft />}
           </button>
         )}
 
         {isOverlay && (
-          <button onClick={onToggle}>
+          <button
+            type="button"
+            onClick={onToggle}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100"
+            aria-label="Close sidebar"
+          >
             <FiX />
           </button>
         )}
       </div>
 
       {/* MENU */}
-      <nav className="flex-1 py-3 space-y-1">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">
         {SIDEBAR_ITEMS.map((item) => {
           const Icon = item.icon;
           const active = isRouteActive(item.href);
@@ -217,10 +229,10 @@ export default function Sidebar({
               <button
                 key={item.id}
                 onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-4 py-2 text-red-600 hover:bg-red-50"
+                className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-red-600 hover:bg-red-50"
               >
                 <Icon />
-                {!collapsed && item.label}
+                {!collapsed && <span className="truncate">{item.label}</span>}
               </button>
             );
           }
@@ -230,7 +242,7 @@ export default function Sidebar({
               key={item.id}
               href={item.href || "#"}
               className={cn(
-                "flex items-center gap-3 px-4 py-2 rounded-md transition",
+                "flex items-center gap-3 rounded-md px-3 py-2 transition",
                 collapsed && "justify-center",
                 active
                   ? "bg-blue-50 text-blue-600"
@@ -243,7 +255,7 @@ export default function Sidebar({
                 )}
               />
               {!collapsed && (
-                <span className="text-sm font-medium">{item.label}</span>
+                <span className="truncate text-sm font-medium">{item.label}</span>
               )}
             </Link>
           );
@@ -252,7 +264,7 @@ export default function Sidebar({
 
       {/* PROFILE COMPLETION */}
       {!collapsed && profileStatus && (
-        <div className="px-4 py-3 border-t">
+        <div className="shrink-0 border-t px-4 py-3">
           <div
             onClick={() => router.push("/admin/profile")}
             className="cursor-pointer bg-slate-50 p-3 rounded-lg hover:bg-slate-100"
@@ -280,7 +292,7 @@ export default function Sidebar({
       )}
 
       {/* USER */}
-      <div className="border-t px-4 py-3">
+      <div className="shrink-0 border-t px-4 py-3">
         <Link
           href="/admin/profile"
           className="flex items-center gap-3 hover:bg-slate-100 p-2 rounded-md"
@@ -298,9 +310,9 @@ export default function Sidebar({
           </div>
 
           {!collapsed && (
-            <div>
-              <p className="text-sm font-medium">{userName}</p>
-              <p className="text-xs text-gray-400">{email}</p>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{userName}</p>
+              <p className="truncate text-xs text-gray-400">{email}</p>
             </div>
           )}
         </Link>

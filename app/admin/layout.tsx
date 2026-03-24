@@ -36,7 +36,7 @@ export default function AdminLayout({
 
   return (
     <AdminToastProvider>
-      <div className="relative flex min-h-screen w-full bg-slate-50">
+      <div className="relative flex min-h-screen w-full overflow-x-clip bg-slate-50">
         <div className="pointer-events-none absolute inset-0 -z-0">
         
         </div>
@@ -62,7 +62,7 @@ export default function AdminLayout({
         )}
 
         {/* Main Area */}
-        <main className="relative z-10 flex flex-col flex-1 min-w-0">
+        <main className="relative z-10 flex min-w-0 flex-1 flex-col overflow-x-hidden">
           {!isLaptopUp && (
             <div className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:px-6">
               <div className="flex items-center gap-3">
@@ -83,8 +83,8 @@ export default function AdminLayout({
           )}
 
           {/* Page Content */}
-          <div className="flex-1 animate-fadeIn px-4 pb-4 pt-6 md:px-8 md:pb-8 md:pt-8 lg:pt-20">
-            <div className="max-w-[1600px] mx-auto">
+          <div className="flex-1 animate-fadeIn px-4 pb-20 pt-4 sm:px-5 md:px-6 md:pb-8 md:pt-6 lg:px-8 lg:pt-8">
+            <div className="mx-auto w-full max-w-[1600px]">
               {children}
             </div>
           </div>

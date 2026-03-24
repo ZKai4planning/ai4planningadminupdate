@@ -158,19 +158,19 @@ export function ClientLogin() {
   }
 
   return (
-    <div className="lg:col-span-5 p-8 lg:p-12 flex flex-col justify-center">
-      <div className="mb-8">
+    <div className="flex flex-col justify-center p-6 sm:p-8 lg:col-span-5 lg:p-10 xl:p-12">
+      <div className="mb-6 sm:mb-8">
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
           Sign In
         </h2>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          {step === "REQUEST_OTP" && "Enter your email and password, then continue."}
+          {/* {step === "REQUEST_OTP" && "Enter your email and password, then continue."} */}
           {step === "VERIFY_OTP" && `Enter the OTP sent to ${identifier}.`}
         </p>
       </div>
 
-      <form className="space-y-6" onSubmit={handleSubmit}>
-        <button
+      <form className="space-y-5 sm:space-y-6" onSubmit={handleSubmit}>
+        {/* <button
           type="button"
           disabled
           className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 py-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-3 text-slate-700 dark:text-slate-200 shadow-sm hover:shadow"
@@ -198,10 +198,10 @@ export function ClientLogin() {
             />
           </svg>
           <span>Continue with Google</span>
-        </button>
+        </button> */}
 
         <div className="flex items-center gap-4">
-          <hr className="flex-1 border-slate-300 dark:border-slate-700" />
+          {/* <hr className="flex-1 border-slate-300 dark:border-slate-700" /> */}
         </div>
 
         <div className="group">
@@ -275,7 +275,7 @@ export function ClientLogin() {
                 {isResending ? "Resending..." : "Resend OTP"}
               </button>
             </div>
-            <div className="flex items-center justify-center gap-1">
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:flex-nowrap sm:gap-1">
               {otp.map((digit, index) => (
                 <div key={index} className="flex items-center">
                   <input
@@ -318,7 +318,7 @@ export function ClientLogin() {
                     }}
                     disabled={isSubmitting || isResending}
                     className="
-                      w-10 h-10 text-center text-lg font-semibold
+                      h-10 w-10 text-center text-base font-semibold sm:h-10 sm:w-10 sm:text-lg
                       bg-slate-50 dark:bg-slate-800/50
                       border border-slate-200 dark:border-slate-700
                       rounded-lg text-slate-900 dark:text-white
@@ -348,9 +348,9 @@ export function ClientLogin() {
           type="submit"
           disabled={isSubmitting}
           className="
-            w-full bg-primary text-white font-bold py-3 rounded
+            w-full rounded py-3 text-white font-bold bg-primary
             transition-all duration-300 active:scale-95
-            rotate-[-3deg] hover:rotate-0
+            sm:rotate-[-3deg] sm:hover:rotate-0
           "
         >
           {step === "REQUEST_OTP"

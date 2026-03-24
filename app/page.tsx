@@ -13,12 +13,12 @@ export default function LoginPage() {
       {/* <LoginHeader /> */}
 
       {/* Main Content */}
-      <main className="relative flex flex-1 items-center justify-center p-6">
+      <main className="relative flex flex-1 items-center justify-center px-4 py-6 sm:px-6">
         {/* Blueprint Background Elements */}
         <BlueprintBackground />
 
         {/* Login Container */}
-        <div className="relative z-10 w-full max-w-[1000px] h-[600px] grid grid-cols-1 lg:grid-cols-12 gap-0 bg-white dark:bg-slate-900 shadow-2xl rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800">
+        <div className="relative z-10 grid w-full max-w-[1000px] grid-cols-1 gap-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900 lg:min-h-[600px] lg:grid-cols-12">
           {/* Left Section */}
            {/* <div className="hidden lg:block lg:col-span-5">
             <BlueprintLeftSection />
@@ -31,7 +31,9 @@ export default function LoginPage() {
         </div>
 
         {/* Floating Toolbar */}
-        <FloatingToolbar />
+        <div className="hidden md:block">
+          <FloatingToolbar />
+        </div>
       </main>
 
       {/* Footer */}
