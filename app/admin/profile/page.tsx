@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Camera, Loader2, Save } from 'lucide-react';
 import axiosInstance from '@/app/lib/axiosinstance';
+import { useAdminToast } from '@/components/admin/AdminToastProvider';
 import {
   readCurrentAuth,
   resolveAuthEmail,
@@ -59,6 +60,7 @@ const persistProfileCache = (profile: ProfileData) => {
 };
 
 export default function ProfilePage() {
+  const { setToast } = useAdminToast();
   const [userId, setUserId] = useState('');
   const [profile, setProfile] = useState<ProfileData>(emptyProfile);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -66,19 +68,6 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-
-  useEffect(() => {
-    if (!errorMessage && !successMessage) return;
-
-    const timer = window.setTimeout(() => {
-      setErrorMessage('');
-      setSuccessMessage('');
-    }, 3000);
-
-    return () => window.clearTimeout(timer);
-  }, [errorMessage, successMessage]);
 
   const getProfileByUserId = async (resolvedUserId: string, fallbackProfile: ProfileData) => {
     const response = await axiosInstance.get(`/admin/profile/${resolvedUserId}`);
@@ -101,7 +90,7 @@ export default function ProfilePage() {
       if (!resolvedUserId) {
         if (!isMounted) return;
         setProfile(fallbackProfile);
-        setErrorMessage('Unable to resolve user ID from the current session.');
+        setToast({ message: 'Unable to resolve user ID from the current session.', type: 'error' });
         setLoading(false);
         return;
       }
@@ -109,7 +98,6 @@ export default function ProfilePage() {
       if (!isMounted) return;
       setUserId(resolvedUserId);
       setProfile(fallbackProfile);
-      setErrorMessage('');
 
       try {
         const nextProfile = await getProfileByUserId(resolvedUserId, fallbackProfile);
@@ -119,7 +107,7 @@ export default function ProfilePage() {
       } catch (error) {
         if (!isMounted) return;
         if (getStatusCode(error) !== 404) {
-          setErrorMessage(getErrorMessage(error, 'Failed to fetch profile.'));
+          setToast({ message: getErrorMessage(error, 'Failed to fetch profile.'), type: 'error' });
         }
       } finally {
         if (isMounted) {
@@ -188,8 +176,6 @@ export default function ProfilePage() {
     if (!userId || saving) return;
 
     setSaving(true);
-    setErrorMessage('');
-    setSuccessMessage('');
 
     try {
       const response = await saveProfileDetails();
@@ -197,9 +183,9 @@ export default function ProfilePage() {
       const nextProfile = normalizeProfileData(data, profile);
       setProfile(nextProfile);
       persistProfileCache(nextProfile);
-      setSuccessMessage('Profile details saved successfully.');
+      setToast({ message: 'Profile details saved successfully.', type: 'success' });
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Failed to save profile details.'));
+      setToast({ message: getErrorMessage(error, 'Failed to save profile details.'), type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -209,8 +195,6 @@ export default function ProfilePage() {
     if (!userId || !selectedFile || uploading) return;
 
     setUploading(true);
-    setErrorMessage('');
-    setSuccessMessage('');
 
     try {
       let response;
@@ -251,9 +235,9 @@ export default function ProfilePage() {
         setPreviewUrl('');
       }
       persistProfileCache(nextProfile);
-      setSuccessMessage('Profile picture updated successfully.');
+      setToast({ message: 'Profile picture updated successfully.', type: 'success' });
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Failed to upload profile picture.'));
+      setToast({ message: getErrorMessage(error, 'Failed to upload profile picture.'), type: 'error' });
     } finally {
       setUploading(false);
     }
@@ -287,19 +271,6 @@ export default function ProfilePage() {
           Update your personal details and profile picture.
         </p>
       </div>
-
-      {(errorMessage || successMessage) && (
-        <div
-          className={`rounded-xl border px-4 py-3 text-sm ${
-            errorMessage
-              ? 'border-red-200 bg-red-50 text-red-700'
-              : 'border-emerald-200 bg-emerald-50 text-emerald-700'
-          }`}
-        >
-          {errorMessage || successMessage}
-        </div>
-      )}
-
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-sm font-semibold text-slate-900">Profile Picture</p>

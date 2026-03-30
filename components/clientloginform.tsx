@@ -146,7 +146,7 @@ export function ClientLogin() {
         const resent = await handleResendOtp()
         setOtpError(
           resent
-            ? "OTP expired. A new OTP has been sent."
+            ? "OTP expired. Resend to continue"
             : "OTP expired. Please resend OTP."
         )
       } else {
