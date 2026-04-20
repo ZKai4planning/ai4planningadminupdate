@@ -3,16 +3,22 @@ import JourneyNotes from "@/components/projects/journey/JourneyNotes";
 import type { RoadmapInsight } from "@/app/lib/project-roadmap";
 import type { Project } from "@/types";
 
+type EligibilityDetailsPayload = {
+  [key: string]: unknown;
+};
+
 export default function JourneyStandardStep({
   project,
   journeySteps,
   activeStep,
   activeInsight,
+  eligibilityData,
 }: {
   project: Project;
   journeySteps: string[];
   activeStep: number;
   activeInsight: RoadmapInsight;
+  eligibilityData?: EligibilityDetailsPayload | null;
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -56,6 +62,7 @@ export default function JourneyStandardStep({
           project={project}
           activeStep={activeStep}
           journeySteps={journeySteps}
+          eligibilityData={eligibilityData}
         />
       </div>
 

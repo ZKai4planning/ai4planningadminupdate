@@ -4,6 +4,10 @@ import JourneyStandardStep from "@/components/projects/journey/JourneyStandardSt
 import JourneyTimeline from "@/components/projects/journey/JourneyTimeline";
 import type { Project } from "@/types";
 
+type EligibilityDetailsPayload = {
+  [key: string]: unknown;
+};
+
 export default function ProjectRoadmap({
   project,
   journeySteps,
@@ -13,6 +17,7 @@ export default function ProjectRoadmap({
   activeStep,
   setActiveStep,
   activeInsight,
+  eligibilityData,
 }: {
   project: Project;
   journeySteps: string[];
@@ -22,6 +27,7 @@ export default function ProjectRoadmap({
   activeStep: number;
   setActiveStep: (step: number) => void;
   activeInsight: RoadmapInsight | undefined;
+  eligibilityData?: EligibilityDetailsPayload | null;
 }) {
   const activeStepLabel = journeySteps[activeStep] || "";
   const isCrossTeamCreationStep =
@@ -51,6 +57,7 @@ export default function ProjectRoadmap({
               journeySteps={journeySteps}
               activeStep={activeStep}
               activeInsight={activeInsight}
+              eligibilityData={eligibilityData}
             />
           )}
 
