@@ -17,6 +17,10 @@ type ApiService = {
   serviceId?: string;
   title?: string;
   serviceName?: string;
+  name?: string;
+  description?: string;
+  image?: string;
+  status?: boolean;
 };
 
 type ApiSubService = {
@@ -24,14 +28,53 @@ type ApiSubService = {
   title?: string;
   subServiceName?: string;
   name?: string;
+  description?: string;
+  image?: string;
+  status?: boolean;
 };
+
+type ApiUser = {
+  _id?: string;
+  userId?: string;
+  fullName?: string;
+  email?: string;
+  phoneNumber?: string;
+  isActive?: boolean;
+} | null;
+
+type ApiProjectStage = {
+  _id?: string;
+  stageId?: string;
+  label?: string;
+  route?: string;
+  priority?: number;
+  initialStage?: boolean;
+  status?: boolean;
+} | null;
 
 type ApiAssignedAgentDetails =
   | {
       name?: string;
+      fullName?: string;
       email?: string;
       userId?: string;
       id?: string;
+    }
+  | string
+  | null
+  | undefined;
+
+type ApiAgent =
+  | {
+      _id?: string;
+      id?: string;
+      userId?: string;
+      name?: string;
+      fullName?: string;
+      email?: string;
+      role?: string;
+      region?: string;
+      assignedAt?: string;
     }
   | string
   | null
@@ -41,6 +84,15 @@ type ApiProject = {
   _id?: string;
   projectId?: string;
   userId?: string;
+  subServiceId?: string;
+  projectStageId?: string;
+  projectStatus?: string;
+  isDeleted?: boolean;
+  user?: ApiUser;
+  service?: ApiService | null;
+  subService?: ApiSubService | null;
+  projectStage?: ApiProjectStage;
+  agents?: ApiAgent[];
   clientName?: string;
   clientDetails?: {
     _id?: string;
@@ -227,44 +279,113 @@ const formatStatusLabel = (value?: string) =>
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
 
-const formatDateLabel = (value?: string) => {
-  if (!value) return "-";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "-";
-  return parsed.toLocaleDateString("en-GB");
-};
-
 const getServiceLabel = (project: ApiProject) =>
-  project.services?.[0]?.serviceName?.trim() ||
+  project.service?.title?.trim() ||
+  project.service?.serviceName?.trim() ||
+  project.service?.name?.trim() ||
   project.services?.[0]?.title?.trim() ||
+  project.services?.[0]?.serviceName?.trim() ||
+  project.services?.[0]?.name?.trim() ||
   "Unassigned service";
 
 const getSubServiceLabel = (project: ApiProject) => {
+  const directLabel =
+    project.subService?.title?.trim() ||
+    project.subService?.subServiceName?.trim() ||
+    project.subService?.name?.trim();
+
+  if (directLabel) return directLabel;
   if (!project.subServices?.length) return "Not specified";
 
   const labels = project.subServices
-    .map((item) => item.subServiceName?.trim() || item.title?.trim() || item.name?.trim())
+    .map((item) => item.title?.trim() || item.subServiceName?.trim() || item.name?.trim())
     .filter(Boolean);
 
   return labels.length ? labels.join(", ") : "Not specified";
 };
 
-const getAssignedAgentLabel = (project: ApiProject) => {
-  const details = project.assignedAgentDetails;
+const getAgentLabel = (agent: ApiAgent | ApiAssignedAgentDetails) => {
+  if (typeof agent === "string" && agent.trim()) return agent.trim();
 
-  if (typeof details === "string" && details.trim()) return details.trim();
-
-  if (details && typeof details === "object") {
-    if (details.name?.trim()) return details.name.trim();
-    if (details.userId?.trim()) return details.userId.trim();
-    if (details.email?.trim()) return details.email.trim();
-    if (details.id?.trim()) return details.id.trim();
+  if (agent && typeof agent === "object") {
+    if (agent.fullName?.trim()) return agent.fullName.trim();
+    if (agent.name?.trim()) return agent.name.trim();
+    if (agent.userId?.trim()) return agent.userId.trim();
+    if (agent.email?.trim()) return agent.email.trim();
+    if ("id" in agent && agent.id?.trim()) return agent.id.trim();
   }
 
+  return "";
+};
+
+const getAssignedAgentLabel = (project: ApiProject) => {
+  const details = project.assignedAgentDetails;
+  const directAgents =
+    project.agents?.map((agent) => getAgentLabel(agent)).filter(Boolean) ?? [];
+
+  if (directAgents.length) return directAgents.join(", ");
+
+  if (details && typeof details === "object") {
+    const detailLabel = getAgentLabel(details);
+    if (detailLabel) return detailLabel;
+  }
+
+  if (typeof details === "string" && details.trim()) return details.trim();
   if (project.assignedAgent?.trim()) return project.assignedAgent.trim();
   if (project.assignedAgentUserId?.trim()) return project.assignedAgentUserId.trim();
 
   return "Unassigned";
+};
+
+const getAgentRole = (agent: ApiAgent) => {
+  if (!agent || typeof agent !== "object") return "";
+  return (agent.role ?? "").trim().toLowerCase();
+};
+
+const getAgentAssignments = (project: ApiProject) => {
+  const directAgents = project.agents ?? [];
+  const agentX =
+    directAgents.find((agent) => getAgentRole(agent) === "agentx") ?? null;
+  const agentY =
+    directAgents.find((agent) => getAgentRole(agent) === "agenty") ?? null;
+
+  const agentXLabel = getAgentLabel(agentX);
+  const agentYLabel = getAgentLabel(agentY);
+  const orderedLabels = [agentXLabel, agentYLabel].filter(Boolean);
+
+  if (orderedLabels.length) {
+    const fallbackLabels = directAgents
+      .map((agent) => getAgentLabel(agent))
+      .filter(Boolean)
+      .filter((label) => !orderedLabels.includes(label));
+
+    return {
+      agentX: agentXLabel || fallbackLabels[0] || "Unassigned",
+      agentY: agentYLabel || fallbackLabels[1] || "Unassigned",
+      assignedAgent: [...orderedLabels, ...fallbackLabels].join(", "),
+    };
+  }
+
+  return {
+    agentX: getAssignedAgentLabel(project),
+    agentY: "Unassigned",
+    assignedAgent: getAssignedAgentLabel(project),
+  };
+};
+
+const getProjectStatusValue = (project: ApiProject) =>
+  project.projectStatus?.trim() || project.status?.trim() || "pending";
+
+const getProjectCurrentStep = (project: ApiProject, status: string) => {
+  if (typeof project.currentStep === "number") return clampStep(project.currentStep);
+
+  if (CLOSED_STATUSES.has(status.toLowerCase())) return 10;
+
+  if (typeof project.projectStage?.priority === "number") {
+    return clampStep(project.projectStage.priority);
+  }
+
+  return 0;
 };
 
 const mapStatusToProjectStatus = (status?: string): Project["status"] => {
@@ -279,6 +400,8 @@ const mapStatusToProjectStatus = (status?: string): Project["status"] => {
     case "in_review":
     case "eligibility_in_progress":
     case "eligibility_completed":
+    case "in_progress":
+    case "open":
       return "in_review";
     case "architect_assigned":
     case "consultant_assigned":
@@ -292,8 +415,11 @@ const mapStatusToProjectStatus = (status?: string): Project["status"] => {
     case "submitted_to_council":
       return "submitted_to_council";
     case "approved":
+    case "completed":
+    case "closed":
       return "approved";
     case "rejected":
+    case "cancelled":
       return "rejected";
     default:
       return "pending";
@@ -322,6 +448,8 @@ const getProjectUpdateSummary = (status: string) => {
       "Application has been submitted to council and is awaiting response.",
     approved: "Council decision received: approved.",
     rejected: "Council decision received: rejected.",
+    in_progress: "Project delivery is in progress and the current stage is actively being worked on.",
+    completed: "Project work is complete and the case has been closed successfully.",
     eligibility_in_progress:
       "Eligibility checks are in progress and the case is being reviewed.",
   };
@@ -344,15 +472,23 @@ const getProgressForRow = (project: ProjectRow) =>
 
 const getClientName = (project: ApiProject) =>
   project.clientName?.trim() ||
+  project.user?.fullName?.trim() ||
   project.clientDetails?.fullName?.trim() ||
   (project.userId?.trim() ? `User ${project.userId.trim()}` : "Unknown User");
 
 const getClientId = (project: ApiProject) =>
+  project.user?.userId?.trim() ||
   project.clientDetails?.userId?.trim() ||
   project.userId?.trim() ||
   "N/A";
 
+const getClientEmail = (project: ApiProject) =>
+  project.user?.email?.trim() ||
+  project.clientDetails?.email?.trim() ||
+  "Not available";
+
 const getTenantId = (project: ApiProject) =>
+  project.user?._id?.trim() ||
   project.clientDetails?._id?.trim() ||
   project._id?.trim() ||
   "N/A";
@@ -483,26 +619,27 @@ const buildEligibilityDocuments = (
 };
 
 const mapProject = (project: ApiProject): ProjectRow => {
-  const status = project.status?.trim() || "pending";
-  const currentStep = clampStep(project.currentStep ?? 0);
+  const status = getProjectStatusValue(project);
+  const currentStep = getProjectCurrentStep(project, status);
   const fallbackId =
     project._id ||
     project.projectId ||
     `${project.userId || "user"}-${project.createdAt || status}`;
+  const agents = getAgentAssignments(project);
 
   return {
     id: project.projectId?.trim() || fallbackId,
     clientName: getClientName(project),
     clientId: getClientId(project),
-    clientEmail: project.clientDetails?.email?.trim() || "Not available",
-    agentX: getAssignedAgentLabel(project),
-    agentY: "Unassigned",
+    clientEmail: getClientEmail(project),
+    agentX: agents.agentX,
+    agentY: agents.agentY,
     projectId: project.projectId?.trim() || project._id || "Unknown",
     tenantId: getTenantId(project),
     userId: project.userId?.trim() || "N/A",
     service: getServiceLabel(project),
     subService: getSubServiceLabel(project),
-    assignedAgent: getAssignedAgentLabel(project),
+    assignedAgent: agents.assignedAgent,
     status,
     statusLabel: CLOSED_STATUSES.has(status.toLowerCase()) ? "Closed" : "Open",
     currentStep,
