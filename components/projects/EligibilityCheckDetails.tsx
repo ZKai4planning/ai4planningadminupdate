@@ -36,8 +36,23 @@ type EligibilityDetailsPayload = {
     applicantDetails?: {
       contactEmailPhone?: string;
       fullName?: string;
+      firstName?: string;
+      middleName?: string;
+      lastName?: string;
+      emailAddress?: string;
+      phoneNumber?: string;
+      countryCode?: string;
       postcode?: string;
       siteAddress?: string;
+    };
+    councilApplicationHistory?: {
+      councilName?: string;
+      hasPreviousCouncilApplication?: boolean;
+      planningReferenceNumber?: string;
+      previousApplicationType?: string;
+      previousDevelopmentType?: string;
+      previousProposalDetails?: string;
+      projectComparison?: string;
     };
     propertyAndOwnership?: {
       nearConservationAreaOrListedBuilding?: string;
@@ -63,11 +78,11 @@ type EligibilityDetailsPayload = {
       wallMaterials?: string;
     };
     plansDrawingsPhotographs?: {
-      locationPlan?: string;
-      additionalDrawings?: string;
-      existingAndProposedElevations?: string;
-      photographsOfSite?: string;
-      sitePlan?: string;
+      locationPlan?: string | string[];
+      additionalDrawings?: string | string[];
+      existingAndProposedElevations?: string | string[];
+      photographsOfSite?: string | string[];
+      sitePlan?: string | string[];
     };
   };
   siteConstraints?: {
@@ -79,7 +94,7 @@ type EligibilityDetailsPayload = {
     floodAndEnvironmentalRisk?: {
       isSiteContaminatedLand?: string;
       isSiteInFloodRiskArea?: string;
-      floodRiskAssesmentReport?: string;
+      floodRiskAssesmentReport?: string | string[];
     };
     heritageAndListing?: {
       isInConservationArea?: string;
@@ -95,7 +110,7 @@ type EligibilityDetailsPayload = {
       treeSpecies?: string;
       treesWithTPO?: string;
       treesWithinFallingDistance?: string;
-      treeSurveyReport?: string;
+      treeSurveyReport?: string | string[];
     };
   };
   utilitiesAndConsents?: {
@@ -147,14 +162,79 @@ const ELIGIBILITY_STEP_LABEL = "Eligibility Check";
 const asText = (value: unknown) => {
   if (value === undefined || value === null || value === "") return "Not provided";
   if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (Array.isArray(value)) {
+    const normalized = value
+      .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      .join(", ");
+    return normalized || "Not provided";
+  }
   return String(value);
 };
 
-const asLinkItem = (question: string, value?: string): EligibilityQuestionItem => ({
-  question,
-  answer: value?.trim() ? "Open file" : "Not provided",
-  href: value?.trim() || undefined,
-});
+const getLinkValue = (value?: string | string[]) => {
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    return {
+      href: normalized || undefined,
+      count: normalized ? 1 : 0,
+    };
+  }
+
+  if (Array.isArray(value)) {
+    const normalized = value.filter(
+      (item): item is string => typeof item === "string" && item.trim().length > 0,
+    );
+
+    return {
+      href: normalized[0],
+      count: normalized.length,
+    };
+  }
+
+  return {
+    href: undefined,
+    count: 0,
+  };
+};
+
+const asLinkItem = (question: string, value?: string | string[]): EligibilityQuestionItem => {
+  const { href, count } = getLinkValue(value);
+
+  return {
+    question,
+    answer:
+      count > 1 ? `Open file (${count} attachments)` : href ? "Open file" : "Not provided",
+    href,
+  };
+};
+
+const joinValues = (...values: Array<string | undefined>) =>
+  values.map((value) => value?.trim()).filter(Boolean).join(" ");
+
+const getApplicantName = (
+  applicantDetails?: EligibilityDetailsPayload["applicantAndProperty"] extends infer T
+    ? T extends { applicantDetails?: infer U }
+      ? U
+      : never
+    : never,
+) =>
+  joinValues(
+    applicantDetails?.firstName,
+    applicantDetails?.middleName,
+    applicantDetails?.lastName,
+  ) || applicantDetails?.fullName?.trim() || "";
+
+const getApplicantContact = (
+  applicantDetails?: EligibilityDetailsPayload["applicantAndProperty"] extends infer T
+    ? T extends { applicantDetails?: infer U }
+      ? U
+      : never
+    : never,
+) =>
+  [applicantDetails?.emailAddress, applicantDetails?.phoneNumber, applicantDetails?.contactEmailPhone]
+    .map((value) => value?.trim())
+    .filter(Boolean)
+    .join(", ");
 
 const buildFallbackSections = (
   project: Project,
@@ -297,6 +377,8 @@ const buildRawSections = (
   const agentDetails = eligibilityData.applicantAndProperty?.agentDetails;
   const applicantDetails =
     eligibilityData.applicantAndProperty?.applicantDetails;
+  const councilApplicationHistory =
+    eligibilityData.applicantAndProperty?.councilApplicationHistory;
   const propertyAndOwnership =
     eligibilityData.applicantAndProperty?.propertyAndOwnership;
   const descriptionOfWorks =
@@ -346,11 +428,11 @@ const buildRawSections = (
           items: [
             {
               question: "Full Name",
-              answer: asText(applicantDetails?.fullName),
+              answer: asText(getApplicantName(applicantDetails)),
             },
             {
               question: "Contact Email / Phone",
-              answer: asText(applicantDetails?.contactEmailPhone),
+              answer: asText(getApplicantContact(applicantDetails)),
             },
             {
               question: "Site Address",
@@ -359,6 +441,41 @@ const buildRawSections = (
             {
               question: "Postcode",
               answer: asText(applicantDetails?.postcode),
+            },
+          ],
+        },
+        {
+          title: "Council Application History",
+          items: [
+            {
+              question: "Has Previous Council Application",
+              answer: asText(
+                councilApplicationHistory?.hasPreviousCouncilApplication,
+              ),
+            },
+            {
+              question: "Council Name",
+              answer: asText(councilApplicationHistory?.councilName),
+            },
+            {
+              question: "Planning Reference Number",
+              answer: asText(councilApplicationHistory?.planningReferenceNumber),
+            },
+            {
+              question: "Previous Application Type",
+              answer: asText(councilApplicationHistory?.previousApplicationType),
+            },
+            {
+              question: "Previous Development Type",
+              answer: asText(councilApplicationHistory?.previousDevelopmentType),
+            },
+            {
+              question: "Previous Proposal Details",
+              answer: asText(councilApplicationHistory?.previousProposalDetails),
+            },
+            {
+              question: "Project Comparison",
+              answer: asText(councilApplicationHistory?.projectComparison),
             },
           ],
         },
@@ -674,12 +791,10 @@ export default function EligibilityCheckDetails({
   journeySteps: string[];
   eligibilityData?: EligibilityDetailsPayload | null;
 }) {
+  const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const eligibilityStepIndex = journeySteps.findIndex(
     (step) => step === ELIGIBILITY_STEP_LABEL,
   );
-  if (activeStep !== eligibilityStepIndex) {
-    return null;
-  }
 
   const sections = useMemo(
     () =>
@@ -688,7 +803,11 @@ export default function EligibilityCheckDetails({
         : buildFallbackSections(project),
     [eligibilityData, project],
   );
-  const [activeSectionIndex, setActiveSectionIndex] = useState(0);
+
+  if (activeStep !== eligibilityStepIndex) {
+    return null;
+  }
+
   if (sections.length === 0) {
     return null;
   }

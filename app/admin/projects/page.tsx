@@ -134,8 +134,23 @@ type ApiEligibilityForm = {
     applicantDetails?: {
       contactEmailPhone?: string;
       fullName?: string;
+      firstName?: string;
+      middleName?: string;
+      lastName?: string;
+      emailAddress?: string;
+      phoneNumber?: string;
+      countryCode?: string;
       postcode?: string;
       siteAddress?: string;
+    };
+    councilApplicationHistory?: {
+      councilName?: string;
+      hasPreviousCouncilApplication?: boolean;
+      planningReferenceNumber?: string;
+      previousApplicationType?: string;
+      previousDevelopmentType?: string;
+      previousProposalDetails?: string;
+      projectComparison?: string;
     };
     propertyAndOwnership?: {
       nearConservationAreaOrListedBuilding?: string;
@@ -161,11 +176,11 @@ type ApiEligibilityForm = {
       colourOrFinishNotes?: string;
     };
     plansDrawingsPhotographs?: {
-      locationPlan?: string;
-      additionalDrawings?: string;
-      existingAndProposedElevations?: string;
-      photographsOfSite?: string;
-      sitePlan?: string;
+      locationPlan?: string | string[];
+      additionalDrawings?: string | string[];
+      existingAndProposedElevations?: string | string[];
+      photographsOfSite?: string | string[];
+      sitePlan?: string | string[];
     };
   };
   siteConstraints?: {
@@ -177,7 +192,7 @@ type ApiEligibilityForm = {
     floodAndEnvironmentalRisk?: {
       isSiteContaminatedLand?: string;
       isSiteInFloodRiskArea?: string;
-      floodRiskAssesmentReport?: string;
+      floodRiskAssesmentReport?: string | string[];
     };
     heritageAndListing?: {
       isInConservationArea?: string;
@@ -193,7 +208,7 @@ type ApiEligibilityForm = {
       treeSpecies?: string;
       treesWithTPO?: string;
       treesWithinFallingDistance?: string;
-      treeSurveyReport?: string;
+      treeSurveyReport?: string | string[];
     };
   };
   utilitiesAndConsents?: {
@@ -303,6 +318,9 @@ const getSubServiceLabel = (project: ApiProject) => {
 
   return labels.length ? labels.join(", ") : "Not specified";
 };
+
+type ApiEligibilityApplicantDetails =
+  NonNullable<ApiEligibilityForm["applicantAndProperty"]>["applicantDetails"];
 
 const getAgentLabel = (agent: ApiAgent | ApiAssignedAgentDetails) => {
   if (typeof agent === "string" && agent.trim()) return agent.trim();
@@ -474,7 +492,9 @@ const getClientName = (project: ApiProject) =>
   project.clientName?.trim() ||
   project.user?.fullName?.trim() ||
   project.clientDetails?.fullName?.trim() ||
-  (project.userId?.trim() ? `User ${project.userId.trim()}` : "Unknown User");
+  (project.user?.userId?.trim() || project.userId?.trim()
+    ? `User ${(project.user?.userId?.trim() || project.userId?.trim()) as string}`
+    : "Unknown User");
 
 const getClientId = (project: ApiProject) =>
   project.user?.userId?.trim() ||
@@ -501,6 +521,39 @@ const toText = (value: unknown) => {
 const joinValues = (...values: Array<string | undefined>) =>
   values.map((value) => value?.trim()).filter(Boolean).join(", ");
 
+const getApplicantFullName = (applicantDetails?: ApiEligibilityApplicantDetails) => {
+  if (!applicantDetails) return "";
+
+  const structuredName = joinValues(
+    applicantDetails.firstName,
+    applicantDetails.middleName,
+    applicantDetails.lastName,
+  );
+
+  return structuredName || applicantDetails.fullName?.trim() || "";
+};
+
+const getApplicantContact = (applicantDetails?: ApiEligibilityApplicantDetails) =>
+  joinValues(
+    applicantDetails?.emailAddress,
+    applicantDetails?.phoneNumber,
+    applicantDetails?.contactEmailPhone,
+  );
+
+const getAllFileUrls = (value?: string | string[]) => {
+  if (typeof value === "string") {
+    return value.trim() ? [value.trim()] : [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.filter(
+      (item): item is string => typeof item === "string" && item.trim().length > 0,
+    );
+  }
+
+  return [];
+};
+
 const buildEligibilityQuestionnaire = (
   eligibility: ApiEligibilityForm | null,
   project: ProjectRow,
@@ -518,12 +571,13 @@ const buildEligibilityQuestionnaire = (
   const heritage = eligibility.siteConstraints?.heritageAndListing;
   const preApp = eligibility.siteConstraints?.preApplicationAdvice;
   const trees = eligibility.siteConstraints?.treesHedgesLandscaping;
+  const applicantFullName = getApplicantFullName(applicantDetails);
+  const applicantContact = getApplicantContact(applicantDetails);
 
   return {
     propertyDetails: {
-      applicantFullName: applicantDetails?.fullName || project.clientName,
-      contactEmailOrPhone:
-        applicantDetails?.contactEmailPhone || project.clientEmail,
+      applicantFullName: applicantFullName || project.clientName,
+      contactEmailOrPhone: applicantContact || project.clientEmail,
       siteAddress: applicantDetails?.siteAddress || "Not provided",
       postcode: applicantDetails?.postcode || "Not provided",
       propertyType: propertyAndOwnership?.propertyType || "Not provided",
@@ -584,47 +638,64 @@ const buildEligibilityDocuments = (
   const trees = eligibility.siteConstraints?.treesHedgesLandscaping;
 
   const sources = [
-    { name: "Location Plan", type: "site_plan" as const, url: plans?.locationPlan },
-    { name: "Site Plan", type: "site_plan" as const, url: plans?.sitePlan },
+    { name: "Location Plan", type: "site_plan" as const, urls: getAllFileUrls(plans?.locationPlan) },
+    { name: "Site Plan", type: "site_plan" as const, urls: getAllFileUrls(plans?.sitePlan) },
     {
       name: "Existing And Proposed Elevations",
       type: "design" as const,
-      url: plans?.existingAndProposedElevations,
+      urls: getAllFileUrls(plans?.existingAndProposedElevations),
     },
-    { name: "Additional Drawings", type: "design" as const, url: plans?.additionalDrawings },
-    { name: "Photographs Of Site", type: "other" as const, url: plans?.photographsOfSite },
+    {
+      name: "Additional Drawings",
+      type: "design" as const,
+      urls: getAllFileUrls(plans?.additionalDrawings),
+    },
+    {
+      name: "Photographs Of Site",
+      type: "other" as const,
+      urls: getAllFileUrls(plans?.photographsOfSite),
+    },
     {
       name: "Flood Risk Assessment Report",
       type: "environmental" as const,
-      url: floodRisk?.floodRiskAssesmentReport,
+      urls: getAllFileUrls(floodRisk?.floodRiskAssesmentReport),
     },
-    { name: "Tree Survey Report", type: "environmental" as const, url: trees?.treeSurveyReport },
+    {
+      name: "Tree Survey Report",
+      type: "environmental" as const,
+      urls: getAllFileUrls(trees?.treeSurveyReport),
+    },
   ];
 
   return sources
-    .filter((item) => Boolean(item.url))
-    .map((item, index) => ({
-      id: `${project.projectId}-doc-${index + 1}`,
-      projectId: project.projectId,
-      clientId: project.clientId,
-      name: item.name,
-      type: item.type,
-      uploadedDate: eligibility.updatedAt || eligibility.createdAt || project.updatedAt,
-      uploadedBy: project.clientName,
-      fileSize: 0,
-      url: item.url as string,
-      status: "reviewed",
-      version: 1,
-    }));
+    .flatMap((item) =>
+      item.urls.map((url, index) => ({
+        id: `${project.projectId}-${item.name.toLowerCase().replace(/\s+/g, "-")}-${index + 1}`,
+        projectId: project.projectId,
+        clientId: project.clientId,
+        name:
+          item.urls.length > 1
+            ? `${item.name} ${index + 1}`
+            : item.name,
+        type: item.type,
+        uploadedDate: eligibility.updatedAt || eligibility.createdAt || project.updatedAt,
+        uploadedBy: project.clientName,
+        fileSize: 0,
+        url,
+        status: "reviewed",
+        version: 1,
+      })),
+    );
 };
 
 const mapProject = (project: ApiProject): ProjectRow => {
   const status = getProjectStatusValue(project);
   const currentStep = getProjectCurrentStep(project, status);
+  const resolvedUserId = project.userId?.trim() || project.user?.userId?.trim() || "";
   const fallbackId =
     project._id ||
     project.projectId ||
-    `${project.userId || "user"}-${project.createdAt || status}`;
+    `${resolvedUserId || "user"}-${project.createdAt || status}`;
   const agents = getAgentAssignments(project);
 
   return {
@@ -636,7 +707,7 @@ const mapProject = (project: ApiProject): ProjectRow => {
     agentY: agents.agentY,
     projectId: project.projectId?.trim() || project._id || "Unknown",
     tenantId: getTenantId(project),
-    userId: project.userId?.trim() || "N/A",
+    userId: resolvedUserId || "N/A",
     service: getServiceLabel(project),
     subService: getSubServiceLabel(project),
     assignedAgent: agents.assignedAgent,
@@ -899,7 +970,7 @@ export default function ProjectsPage() {
       id: selectedProject.clientId,
       name: selectedProject.clientName,
       email:
-        applicantDetails?.contactEmailPhone ||
+        getApplicantContact(applicantDetails) ||
         (selectedProject.clientEmail !== "Not available"
           ? selectedProject.clientEmail
           : ""),
