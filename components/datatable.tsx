@@ -9,6 +9,7 @@ import { Download, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 interface DataTableProps<T> {
   data: T[]
   columns: Column<T>[]
+  exportFilename?: string
 }
 export type Column<T> = {
   key: keyof T | "sno" | "actions"
@@ -30,12 +31,11 @@ export type Column<T> = {
 export default function DataTable<T extends { id: string | number; isActive?: boolean }>({
   data,
   columns,
+  exportFilename = "employees.csv",
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] =
     useState<"All" | "Active" | "Inactive">("All")
-  const [rowsPerPage, setRowsPerPage] = useState(5)
-  const [currentPage, setCurrentPage] = useState(1)
   const [sortKey, setSortKey] = useState<keyof T | null>(null)
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
 
@@ -79,9 +79,8 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
   }
 
   /* PAGINATION */
-  const totalPages = Math.ceil(sortedData.length / rowsPerPage)
-  const startIndex = (currentPage - 1) * rowsPerPage
-  const visibleData = sortedData.slice(startIndex, startIndex + rowsPerPage)
+  const startIndex = 0
+  const visibleData = sortedData
 
   /* EXPORT */
   const handleExport = () => {
@@ -102,7 +101,7 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
 
     const a = document.createElement("a")
     a.href = url
-    a.download = "employees.csv"
+    a.download = exportFilename
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -116,28 +115,26 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
   }
 
   return (
-    <div className="bg-white/95 backdrop-blur rounded-2xl shadow-[0_8px_30px_rgba(15,23,42,0.06)] border border-slate-200 p-6">
+    <div className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-[0_8px_30px_rgba(15,23,42,0.06)] backdrop-blur sm:p-6">
 
       {/* TOP BAR */}
-      <div className="flex flex-wrap gap-3 justify-between items-center mb-5">
+      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <input
           placeholder="Search..."
           value={search}
           onChange={(e) => {
             setSearch(e.target.value)
-            setCurrentPage(1)
           }}
-          className="border border-slate-200 px-4 py-2.5 rounded-xl w-64 text-sm bg-slate-50/70 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="border border-slate-200 px-4 py-2.5 rounded-xl w-full sm:w-64 text-sm bg-slate-50/70 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
 
-        <div className="flex gap-3">
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-end lg:w-auto">
           <select
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value as any)
-              setCurrentPage(1)
             }}
-            className="border border-slate-200 px-4 py-2 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-slate-200 px-4 py-2 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
           >
             <option value="All">All</option>
             <option value="Active">Active</option>
@@ -146,7 +143,7 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
 
           <button
             onClick={handleExport}
-            className="flex items-center gap-2 border border-slate-200 px-4 py-2.5 rounded-xl text-sm bg-white hover:bg-slate-50"
+            className="flex items-center justify-center gap-2 border border-slate-200 px-4 py-2.5 rounded-xl text-sm bg-white hover:bg-slate-50 w-full sm:w-auto"
           >
             <Download className="w-4 h-4" />
             Export
@@ -155,8 +152,8 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
       </div>
 
       {/* TABLE */}
-      <div className="overflow-auto border border-slate-200 rounded-xl">
-        <table className="min-w-full table-fixed">
+      <div className="overflow-x-auto rounded-xl border border-slate-200">
+        <table className="min-w-[640px] w-full table-auto lg:min-w-[720px]">
           <thead className="bg-slate-100/90 sticky top-0 backdrop-blur">
             <tr className="border-b border-slate-200">
          {columns.map(col => (
@@ -230,41 +227,6 @@ export default function DataTable<T extends { id: string | number; isActive?: bo
         </table>
       </div>
 
-      {/* FOOTER */}
-      <div className="flex flex-wrap gap-3 justify-between items-center mt-5 text-sm">
-        <div>
-          Rows per page:
-          <select
-            value={rowsPerPage}
-            onChange={(e) => {
-              setRowsPerPage(Number(e.target.value))
-              setCurrentPage(1)
-            }}
-            className="ml-2 border border-slate-200 px-2 py-1 rounded-lg bg-white"
-          >
-            {[5, 10, 20, 50].map(n => (
-              <option key={n}>{n}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage(p => p - 1)}
-            className="px-3 py-1.5 border border-slate-200 rounded-lg disabled:opacity-50 hover:bg-slate-50"
-          >
-            Prev
-          </button>
-          <button
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage(p => p + 1)}
-            className="px-3 py-1.5 border border-slate-200 rounded-lg disabled:opacity-50 hover:bg-slate-50"
-          >
-            Next
-          </button>
-        </div>
-      </div>
     </div>
   )
 }

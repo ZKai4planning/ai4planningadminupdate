@@ -464,7 +464,27 @@ export default function PaymentsPage() {
           <h3 className="text-lg font-semibold text-slate-900">Project Budget Overview</h3>
           <span className="text-xs text-slate-500">Budget, collection, and spend by project</span>
         </div>
-        <DataTable data={analytics.projectBudgets} columns={projectBudgetColumns} />
+        <div className="md:hidden space-y-3">
+          {analytics.projectBudgets.map((project) => (
+            <div key={project.id} className="rounded-lg border border-slate-200 p-4">
+              <p className="text-sm font-semibold text-slate-900">{project.projectTitle}</p>
+              <p className="text-xs text-slate-500">{project.projectId}</p>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <span className="text-slate-500">Budget</span>
+                <span className="font-semibold text-slate-900">{currency.format(project.budget)}</span>
+                <span className="text-slate-500">Received</span>
+                <span className="font-semibold text-emerald-700">{currency.format(project.received)}</span>
+                <span className="text-slate-500">Pending</span>
+                <span className="font-semibold text-amber-700">{currency.format(project.pending)}</span>
+                <span className="text-slate-500">Utilization</span>
+                <span className="font-semibold text-blue-700">{project.utilizationPct}%</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="hidden md:block">
+          <DataTable data={analytics.projectBudgets} columns={projectBudgetColumns} />
+        </div>
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-6">
@@ -510,7 +530,43 @@ export default function PaymentsPage() {
         <h2 className="mb-4 text-lg font-semibold text-slate-900">
           {filteredPayments.length} Payment{filteredPayments.length !== 1 ? 's' : ''}
         </h2>
-        <DataTable data={paymentRows} columns={paymentColumns} />
+        <div className="md:hidden space-y-3">
+          {paymentRows.map((payment) => (
+            <div key={payment.id} className="rounded-lg border border-slate-200 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{payment.clientName}</p>
+                  <p className="text-xs text-slate-500">{payment.clientEmail}</p>
+                </div>
+                <StatusBadge status={payment.status} type="payment" />
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <span className="text-slate-500">Amount</span>
+                <span className="font-semibold text-slate-900">{currency.format(payment.amount)}</span>
+                <span className="text-slate-500">Method</span>
+                <span className="capitalize text-slate-700">{payment.paymentMethod.replace(/_/g, ' ')}</span>
+                <span className="text-slate-500">Date</span>
+                <span className="text-slate-700">{new Date(payment.paymentDate).toLocaleDateString('en-GB')}</span>
+                <span className="text-slate-500">Txn</span>
+                <span className="font-mono text-xs text-slate-700">{payment.transactionId}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedPayment(
+                    mockPayments.find((p) => p.id === payment.id) || null,
+                  )
+                }
+                className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                View
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="hidden md:block">
+          <DataTable data={paymentRows} columns={paymentColumns} />
+        </div>
       </section>
 
       {selectedPayment && (

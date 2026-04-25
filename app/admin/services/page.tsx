@@ -1,394 +1,784 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Search, Plus, Zap, ChevronDown, ChevronUp } from 'lucide-react';
-import { mockServices } from '@/app/lib/mock-data';
-import type { Service } from '@/types';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ChevronDown, ChevronRight, Plus, Zap } from 'lucide-react';
+import axiosInstance from '@/app/lib/axiosinstance';
+import DataTable, { Column } from '@/components/datatable';
+import { type ToastType } from '@/components/ui/bottom-toast';
+import { useAdminToast } from '@/components/admin/AdminToastProvider';
 
-export default function ServicesPage() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterCategory, setFilterCategory] = useState('');
-  const [expandedServices, setExpandedServices] = useState<string[]>([]);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    category: 'residential' as const,
-    price: '',
-    duration: '',
-    images: [] as File[],
-  });
+type SubService = {
+  id: string;
+  serviceId: string;
+  title: string;
+  name: string;
+  slug: string;
+  imageUrl: string | null;
+  description: string;
+  isActive: boolean;
+};
 
-  const filteredServices = mockServices.filter((service) => {
-    const matchesSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = !filterCategory || service.category === filterCategory;
-    return matchesSearch && matchesCategory;
-  });
+type Service = {
+  id: string;
+  title: string;
+  name: string;
+  slug: string;
+  imageUrl: string | null;
+  description: string;
+  isActive: boolean;
+  subServices: SubService[];
+};
 
-  const categoryOptions = [
-    { value: 'residential', label: 'Residential' },
-    { value: 'commercial', label: 'Commercial' },
-    { value: 'extension', label: 'Extension' },
-    { value: 'consultation', label: 'Consultation' },
-  ];
+type ApiSubService = {
+  image: null;
+  id?: string;
+  _id?: string;
+  subServiceId?: string;
+  serviceId?: string;
+  title?: string;
+  name?: string;
+  subServiceName?: string;
+  slug?: string;
+  subServiceSlug?: string;
+  images?: string[] | string | null;
+  description?: string;
+  isActive?: boolean;
+  status?: boolean;
+};
 
-  const getCategoryBadge = (category: string) => {
-    const colors: Record<string, string> = {
-      residential: 'bg-blue-100 text-blue-700',
-      commercial: 'bg-purple-100 text-purple-700',
-      extension: 'bg-orange-100 text-orange-700',
-      consultation: 'bg-emerald-100 text-emerald-700',
-    };
-    return colors[category] || colors.residential;
-  };
+type ApiService = {
+  image: string | null;
+  id?: string;
+  _id?: string;
+  serviceId?: string;
+  title?: string;
+  name?: string;
+  serviceName?: string;
+  slug?: string;
+  serviceSlug?: string;
+  images?: string[] | string | null;
+  description?: string;
+  isActive?: boolean;
+  status?: boolean;
+  subServices?: ApiSubService[];
+};
 
-  const toggleExpand = (serviceId: string) => {
-    setExpandedServices((prev) =>
-      prev.includes(serviceId)
-        ? prev.filter((id) => id !== serviceId)
-        : [...prev, serviceId]
-    );
-  };
+type ServiceTableRow = {
+  id: string;
+  rowKind: 'service' | 'subservice' | 'meta';
+  serviceId: string;
+  entityId?: string;
+  parentServiceId?: string;
+  title: string;
+  name: string;
+  slug: string;
+  imageUrl?: string | null;
+  description: string;
+  isActive?: boolean;
+  isExpanded?: boolean;
+  subIndex?: number;
+};
 
-  const handleAddService = () => {
-    if (formData.name && formData.category && formData.price && formData.duration && formData.images.length > 0) {
-      alert('Service added successfully!');
-      setFormData({ name: '', description: '', category: 'residential', price: '', duration: '', images: [] });
-      setShowAddModal(false);
+const getErrorMessage = (error: unknown, fallback: string) => {
+  const err = error as { response?: { data?: { message?: string } }; message?: string };
+  return err?.response?.data?.message || err?.message || fallback;
+};
+
+const slugify = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'n-a';
+
+
+const normalizeSubService = (subService: ApiSubService, fallbackServiceId = ''): SubService => ({
+  id: subService.subServiceId ?? subService.id ?? subService._id ?? '',
+  serviceId: subService.serviceId ?? fallbackServiceId,
+  title: subService.title ?? '',
+  name: subService.name ?? subService.subServiceName ?? '',
+  slug:
+    subService.slug ??
+    subService.subServiceSlug ??
+    slugify(subService.name ?? subService.subServiceName ?? subService.title ?? ''),
+  imageUrl: subService.image ?? null,
+  description: subService.description ?? '',
+  isActive: subService.isActive ?? subService.status ?? true,
+});
+
+const normalizeService = (service: ApiService): Service => ({
+  id: service.serviceId ?? service.id ?? service._id ?? '',
+  title: service.title ?? '',
+  name: service.name ?? service.serviceName ?? '',
+  slug:
+    service.slug ??
+    service.serviceSlug ??
+    slugify(service.name ?? service.serviceName ?? service.title ?? ''),
+  imageUrl:service.image,
+  description: service.description ?? '',
+  isActive: service.isActive ?? service.status ?? true,
+  subServices: Array.isArray(service.subServices)
+    ? service.subServices
+        .map((subService) =>
+          normalizeSubService(subService, service.serviceId ?? service.id ?? service._id ?? ''),
+        )
+        .filter((subService) => subService.id)
+    : [],
+});
+
+const getLabel = (title: string, name: string) => title || name || 'Untitled';
+const getDescription = (description: string) => description || 'No description';
+const getAvatarText = (title: string, name: string) => (title || name || 'S').charAt(0).toUpperCase();
+
+function ServicesPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { setToast } = useAdminToast();
+  const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [statusUpdatingByService, setStatusUpdatingByService] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [statusUpdatingBySubService, setStatusUpdatingBySubService] = useState<
+    Record<string, boolean>
+  >({});
+
+  const [expandedServiceId, setExpandedServiceId] = useState<string | null>(null);
+  const [subServicesByService, setSubServicesByService] = useState<Record<string, SubService[]>>({});
+  const [subServicesLoadingByService, setSubServicesLoadingByService] = useState<
+    Record<string, boolean>
+  >({});
+  const [subServicesErrorByService, setSubServicesErrorByService] = useState<
+    Record<string, string>
+  >({});
+
+  const fetchServices = async () => {
+    try {
+      setLoading(true);
+
+      const res = await axiosInstance.get('/services?includeDeleted=true');
+      const payload = (res.data?.data ?? res.data ?? []) as ApiService[];
+      const normalized = Array.isArray(payload)
+        ? payload.map(normalizeService).filter((service) => service.id)
+        : [];
+
+      setServices(normalized);
+    } catch (error) {
+      setToast({
+        type: 'error',
+        message: getErrorMessage(error, 'Failed to load services.'),
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files ? Array.from(e.target.files) : [];
-    setFormData((prev) => {
-      const combined = [...prev.images, ...files];
-      const limited = combined.slice(0, 5);
-      return { ...prev, images: limited };
-    });
-    e.target.value = '';
-  };
-
-  const removeImageAt = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      images: prev.images.filter((_, i) => i !== index),
-    }));
-  };
-
-  const imagePreviews = useMemo(
-    () => formData.images.map((file) => URL.createObjectURL(file)),
-    [formData.images]
-  );
+  useEffect(() => {
+    void fetchServices();
+  }, []);
 
   useEffect(() => {
-    return () => {
-      imagePreviews.forEach((url) => URL.revokeObjectURL(url));
-    };
-  }, [imagePreviews]);
+    const toastMessage = searchParams.get('toast');
+    if (!toastMessage) return;
+
+    const toastTypeParam = searchParams.get('toastType');
+    const toastType: ToastType =
+      toastTypeParam === 'success' || toastTypeParam === 'error' || toastTypeParam === 'info'
+        ? toastTypeParam
+        : 'info';
+
+    setToast({ message: toastMessage, type: toastType });
+    router.replace('/admin/services');
+  }, [router, searchParams]);
+
+  const navigateToEditPage = (params: {
+    type: 'service' | 'subservice';
+    id: string;
+    title: string;
+    name: string;
+    description: string;
+    parentServiceId?: string;
+    imageUrl?: string | null;
+  }) => {
+    const query = new URLSearchParams({
+      mode: 'edit',
+      type: params.type,
+      id: params.id,
+      title: params.title,
+      name: params.name,
+      description: params.description,
+    });
+
+    if (params.parentServiceId) {
+      query.set('parentServiceId', params.parentServiceId);
+    }
+    if (params.imageUrl) {
+      query.set('imageUrl', params.imageUrl);
+    }
+
+    router.push(`/admin/services/create?${query.toString()}`);
+  };
+
+  const handleEditService = (service: Service) => {
+    navigateToEditPage({
+      type: 'service',
+      id: service.id,
+      title: service.title,
+      name: service.name,
+      description: service.description,
+      imageUrl: service.imageUrl,
+    });
+  };
+
+  const handleEditSubService = (subService: SubService) => {
+    navigateToEditPage({
+      type: 'subservice',
+      id: subService.id,
+      title: subService.title,
+      name: subService.name,
+      description: subService.description,
+      parentServiceId: subService.serviceId,
+      imageUrl: subService.imageUrl,
+    });
+  };
+
+  const toggleServiceStatus = async (serviceId: string, nextActive: boolean) => {
+    if (statusUpdatingByService[serviceId]) return;
+
+    setStatusUpdatingByService((prev) => ({ ...prev, [serviceId]: true }));
+
+    const previousServices = services;
+    setServices((prev) =>
+      prev.map((service) =>
+        service.id === serviceId ? { ...service, isActive: nextActive } : service,
+      ),
+    );
+
+    try {
+      if (nextActive) {
+        try {
+          await axiosInstance.patch(`/services/${serviceId}/restore`);
+        } catch {
+          await axiosInstance.post(`/services/${serviceId}/restore`);
+        }
+      } else {
+        try {
+          await axiosInstance.patch(`/services/${serviceId}/soft-delete`);
+        } catch {
+          await axiosInstance.post(`/services/${serviceId}/soft-delete`);
+        }
+      }
+      setToast({
+        type: 'success',
+        message: nextActive ? 'Service activated successfully.' : 'Service deactivated successfully.',
+      });
+    } catch (error) {
+      setServices(previousServices);
+      setToast({
+        type: 'error',
+        message: getErrorMessage(
+          error,
+          nextActive
+            ? 'Failed to activate service. Please try again.'
+            : 'Failed to deactivate service. Please try again.',
+        ),
+      });
+    } finally {
+      setStatusUpdatingByService((prev) => {
+        const next = { ...prev };
+        delete next[serviceId];
+        return next;
+      });
+    }
+  };
+
+  const toggleSubServiceStatus = async (
+    subServiceId: string,
+    parentServiceId: string,
+    nextActive: boolean,
+  ) => {
+    if (!subServiceId || statusUpdatingBySubService[subServiceId]) return;
+
+    setStatusUpdatingBySubService((prev) => ({ ...prev, [subServiceId]: true }));
+
+    const previousServices = services;
+    const previousSubServicesByService = subServicesByService;
+
+    setServices((prev) =>
+      prev.map((service) => ({
+        ...service,
+        subServices: service.subServices.map((subService) =>
+          subService.id === subServiceId ? { ...subService, isActive: nextActive } : subService,
+        ),
+      })),
+    );
+    setSubServicesByService((prev) => {
+      const scoped = prev[parentServiceId];
+      if (!scoped) return prev;
+
+      return {
+        ...prev,
+        [parentServiceId]: scoped.map((subService) =>
+          subService.id === subServiceId ? { ...subService, isActive: nextActive } : subService,
+        ),
+      };
+    });
+
+    try {
+      if (nextActive) {
+        await axiosInstance.patch(`/subservices/${subServiceId}/restore`);
+      } else {
+        await axiosInstance.patch(`/subservices/${subServiceId}/soft-delete`);
+      }
+
+      setToast({
+        type: 'success',
+        message: nextActive
+          ? 'Sub service activated successfully.'
+          : 'Sub service deactivated successfully.',
+      });
+    } catch (error) {
+      setServices(previousServices);
+      setSubServicesByService(previousSubServicesByService);
+      setToast({
+        type: 'error',
+        message: getErrorMessage(
+          error,
+          nextActive
+            ? 'Failed to activate sub service. Please try again.'
+            : 'Failed to deactivate sub service. Please try again.',
+        ),
+      });
+    } finally {
+      setStatusUpdatingBySubService((prev) => {
+        const next = { ...prev };
+        delete next[subServiceId];
+        return next;
+      });
+    }
+  };
+
+  const fetchSubServicesByService = async (serviceId: string) => {
+    try {
+      setSubServicesLoadingByService((prev) => ({ ...prev, [serviceId]: true }));
+      setSubServicesErrorByService((prev) => ({ ...prev, [serviceId]: '' }));
+
+      let res;
+      try {
+        res = await axiosInstance.get(`/subservices/service/${serviceId}?includeDeleted=true`);
+      } catch {
+        res = await axiosInstance.get(`/subservices/service/${serviceId}`);
+      }
+      const payload = (res.data?.data ?? res.data ?? []) as ApiSubService[];
+      const normalized = Array.isArray(payload)
+        ? payload
+            .map((subService) => normalizeSubService(subService, serviceId))
+            .filter((subService) => subService.id)
+        : [];
+
+      setSubServicesByService((prev) => ({ ...prev, [serviceId]: normalized }));
+      setServices((prev) =>
+        prev.map((service) =>
+          service.id === serviceId ? { ...service, subServices: normalized } : service,
+        ),
+      );
+    } catch (error) {
+      setSubServicesErrorByService((prev) => ({
+        ...prev,
+        [serviceId]: getErrorMessage(error, 'Failed to load sub services.'),
+      }));
+      setSubServicesByService((prev) => ({ ...prev, [serviceId]: [] }));
+    } finally {
+      setSubServicesLoadingByService((prev) => ({ ...prev, [serviceId]: false }));
+    }
+  };
+
+  const handleToggleAccordion = (serviceId: string) => {
+    if (expandedServiceId === serviceId) {
+      setExpandedServiceId(null);
+      return;
+    }
+
+    setExpandedServiceId(serviceId);
+    void fetchSubServicesByService(serviceId);
+  };
+
+  const tableRows = useMemo<ServiceTableRow[]>(() => {
+    const rows: ServiceTableRow[] = [];
+
+    services.forEach((service) => {
+      const isExpanded = expandedServiceId === service.id;
+      const subServices = subServicesByService[service.id] ?? service.subServices;
+      const subServicesLoading = subServicesLoadingByService[service.id] ?? false;
+      const subServicesError = subServicesErrorByService[service.id] ?? '';
+
+      rows.push({
+        id: `service-${service.id}`,
+        rowKind: 'service',
+        serviceId: service.id,
+        entityId: service.id,
+        title: service.title,
+        name: service.name,
+        slug: service.slug,
+        imageUrl: service.imageUrl,
+        description: service.description,
+        isActive: service.isActive,
+        isExpanded,
+      });
+
+      if (!isExpanded) {
+        return;
+      }
+
+      if (subServicesLoading) {
+        rows.push({
+          id: `service-${service.id}-loading`,
+          rowKind: 'meta',
+          serviceId: service.id,
+          title: '',
+          name: '',
+          slug: '',
+          description: 'Loading sub services...',
+        });
+        return;
+      }
+
+      if (subServicesError) {
+        rows.push({
+          id: `service-${service.id}-error`,
+          rowKind: 'meta',
+          serviceId: service.id,
+          title: '',
+          name: '',
+          slug: '',
+          description: subServicesError,
+        });
+        return;
+      }
+
+      if (subServices.length === 0) {
+        rows.push({
+          id: `service-${service.id}-empty`,
+          rowKind: 'meta',
+          serviceId: service.id,
+          title: '',
+          name: '',
+          slug: '',
+          description: 'No sub services found.',
+        });
+        return;
+      }
+
+      subServices.forEach((subService, index) => {
+        rows.push({
+          id: `subservice-${subService.id}`,
+          rowKind: 'subservice',
+          serviceId: service.id,
+          parentServiceId: subService.serviceId,
+          entityId: subService.id,
+          title: subService.title,
+          name: subService.name,
+          slug: subService.slug,
+          imageUrl: subService.imageUrl,
+          description: subService.description,
+          isActive: subService.isActive,
+          subIndex: index + 1,
+        });
+      });
+    });
+
+    return rows;
+  }, [
+    expandedServiceId,
+    services,
+    subServicesByService,
+    subServicesErrorByService,
+    subServicesLoadingByService,
+  ]);
+
+  const columns: Column<ServiceTableRow>[] = [
+      {
+        key: 'name',
+        label: 'Name',
+        sortable: true,
+        render: (_value, row) => {
+          if (row.rowKind === 'meta') {
+            return <span className="pl-8 text-sm text-slate-500">{row.description}</span>;
+          }
+
+          if (row.rowKind === 'subservice') {
+            return (
+              <div className="flex min-w-[260px] items-center gap-3 pl-8">
+                <span className="w-6 text-sm text-slate-500">{row.subIndex}</span>
+                {row.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={row.imageUrl}
+                    alt={getLabel(row.title, row.name)}
+                    className="h-10 w-10 rounded-xl border border-slate-200 object-cover"
+                  />
+                ) : (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+                    {getAvatarText(row.title, row.name)}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-slate-900">{getLabel(row.title, row.name)}</p>
+                  <p className="text-xs text-slate-500">Sub Service</p>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div className="flex min-w-[260px] items-center gap-3">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleToggleAccordion(row.serviceId);
+                }}
+                className="rounded-md p-1.5 text-slate-700 hover:bg-slate-100"
+                aria-label={row.isExpanded ? 'Collapse sub services' : 'Expand sub services'}
+              >
+                {row.isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              </button>
+              {row.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={row.imageUrl}
+                  alt={getLabel(row.title, row.name)}
+                  className="h-10 w-10 rounded-xl border border-slate-200 object-cover"
+                />
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-xs font-semibold text-slate-600">
+                  {getAvatarText(row.title, row.name)}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-slate-900">{getLabel(row.title, row.name)}</p>
+                <p className="text-xs text-slate-500">Service</p>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'slug',
+        label: 'Service Name',
+        sortable: true,
+        render: (value, row) =>
+          row.rowKind === 'meta' ? (
+            '-'
+          ) : (
+            <span className="inline-flex rounded-md bg-slate-100 px-2.5 py-1 font-mono text-xs text-slate-700">
+              {value}
+            </span>
+          ),
+      },
+      {
+        key: 'description',
+        label: 'Description',
+        sortable: true,
+        render: (value, row) =>
+          row.rowKind === 'meta' ? (
+            <span className="text-sm text-slate-500">{value}</span>
+          ) : (
+            <span className="line-clamp-1 text-slate-600">{getDescription(String(value ?? ''))}</span>
+          ),
+      },
+      {
+        key: 'isActive',
+        label: 'Status',
+        sortable: true,
+        render: (_value, row) => {
+          if (row.rowKind === 'meta' || typeof row.isActive !== 'boolean') {
+            return '-';
+          }
+
+          const isServiceRow = row.rowKind === 'service';
+          const isSubServiceRow = row.rowKind === 'subservice';
+          const subServiceId = row.entityId ?? '';
+          const isServiceUpdating = isServiceRow ? !!statusUpdatingByService[row.serviceId] : false;
+          const isSubServiceUpdating = isSubServiceRow
+            ? !!statusUpdatingBySubService[subServiceId]
+            : false;
+          const isUpdating = isServiceUpdating || isSubServiceUpdating;
+
+          return (
+            <div className="flex items-center gap-2">
+              {isServiceRow ? (
+                <button
+                  type="button"
+                  onClick={() => void toggleServiceStatus(row.serviceId, !row.isActive)}
+                  disabled={isUpdating}
+                  aria-busy={isUpdating}
+                  className={`inline-flex h-6 w-10 items-center rounded-full p-1 transition-opacity ${
+                    row.isActive ? 'bg-slate-900' : 'bg-slate-300'
+                  } ${isUpdating ? 'cursor-not-allowed opacity-60' : ''}`}
+                  >
+                    <span
+                      className={`h-4 w-4 rounded-full bg-white transition ${
+                        row.isActive ? 'ml-auto' : ''
+                      }`}
+                    />
+                  </button>
+              ) : isSubServiceRow ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    void toggleSubServiceStatus(
+                      subServiceId,
+                      row.parentServiceId ?? row.serviceId,
+                      !row.isActive,
+                    )
+                  }
+                  disabled={isUpdating || !subServiceId}
+                  aria-busy={isUpdating}
+                  className={`inline-flex h-6 w-10 items-center rounded-full p-1 transition-opacity ${
+                    row.isActive ? 'bg-slate-900' : 'bg-slate-300'
+                  } ${isUpdating ? 'cursor-not-allowed opacity-60' : ''}`}
+                >
+                  <span
+                    className={`h-4 w-4 rounded-full bg-white transition ${
+                      row.isActive ? 'ml-auto' : ''
+                    }`}
+                  />
+                </button>
+              ) : (
+                '-'
+              )}
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                  row.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {row.isActive ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'actions',
+        label: 'Actions',
+        render: (_value, row) => {
+          if (row.rowKind === 'meta') {
+            return '-';
+          }
+
+          if (row.rowKind === 'subservice') {
+            const subService: SubService = {
+              id: row.entityId ?? '',
+              serviceId: row.parentServiceId ?? row.serviceId,
+              title: row.title,
+              name: row.name,
+              slug: row.slug,
+              imageUrl: row.imageUrl ?? null,
+              description: row.description,
+              isActive: row.isActive ?? true,
+            };
+
+            return (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleEditSubService(subService)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  View
+                </button>
+                {subService.isActive && (
+                  <button
+                    type="button"
+                    onClick={() => handleEditSubService(subService)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
+            );
+          }
+
+          const service: Service = {
+            id: row.entityId ?? '',
+            title: row.title,
+            name: row.name,
+            slug: row.slug,
+            imageUrl: row.imageUrl ?? null,
+            description: row.description,
+            isActive: row.isActive ?? true,
+            subServices: [],
+          };
+
+          return (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleEditService(service)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                View
+              </button>
+              {service.isActive && (
+                <button
+                  type="button"
+                  onClick={() => handleEditService(service)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Edit
+                </button>
+              )}
+            </div>
+          );
+        },
+      },
+  ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center">
-            <Zap className="w-6 h-6 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-slate-900">Services</h1>
+    <div className="p-6">
+      <div className="mb-6 flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600">
+          <Zap className="h-6 w-6 text-white" />
         </div>
-        <p className="text-slate-600">Manage all planning services and sub-services.</p>
+        <h1 className="text-3xl font-bold">Services</h1>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
-          <p className="text-xs font-semibold text-slate-600 uppercase">Total Services</p>
-          <p className="text-2xl font-bold text-slate-900 mt-1">{mockServices.length}</p>
-        </div>
-        <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-4">
-          <p className="text-xs font-semibold text-slate-600 uppercase">Active</p>
-          <p className="text-2xl font-bold text-emerald-600 mt-1">{mockServices.filter(s => s.isActive).length}</p>
-        </div>
-        <div className="bg-amber-50 border border-amber-100 rounded-lg p-4">
-          <p className="text-xs font-semibold text-slate-600 uppercase">Sub-Services</p>
-          <p className="text-2xl font-bold text-amber-600 mt-1">{mockServices.reduce((sum, s) => sum + s.subServices.length, 0)}</p>
-        </div>
-        <div className="bg-orange-50 border border-orange-100 rounded-lg p-4">
-          <p className="text-xs font-semibold text-slate-600 uppercase">Avg Price</p>
-          <p className="text-2xl font-bold text-orange-600 mt-1">£{Math.round(mockServices.reduce((sum, s) => sum + s.price, 0) / mockServices.length)}</p>
-        </div>
+      <div className="mb-6 flex justify-end">
+        <button
+          onClick={() => router.push('/admin/services/create')}
+          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white"
+        >
+          <Plus size={18} />
+          Create Service
+        </button>
       </div>
 
-      {/* Search and Filter */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6 mb-6 shadow-sm">
-        <div className="flex flex-col md:flex-row gap-3 md:gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
-            <input
-              type="text"
-              placeholder="Search services..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-900"
-          >
-            <option value="">All Categories</option>
-            {categoryOptions.map((cat) => (
-              <option key={cat.value} value={cat.value}>{cat.label}</option>
-            ))}
-          </select>
-          <button 
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-          >
-            <Plus size={18} />
-            <span className="hidden sm:inline">Add Service</span>
-          </button>
+      {loading ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+          Loading services...
         </div>
-      </div>
-
-      {/* Services Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        {filteredServices.length === 0 ? (
-          <div className="p-12 text-center">
-            <p className="text-slate-500">No services found.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-slate-900">Service Name</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-slate-900">Category</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-slate-900">Price</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-slate-900">Duration</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-slate-900">Sub-Services</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-slate-900">Status</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-slate-900">Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredServices.map((service, idx) => (
-                  <>
-                    <tr key={service.id} className={`border-b border-slate-200 hover:bg-slate-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
-                      <td className="px-6 py-4">
-                        <p className="font-semibold text-slate-900">{service.name}</p>
-                        <p className="text-sm text-slate-600 line-clamp-1">{service.description}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold capitalize ${getCategoryBadge(service.category)}`}>
-                          {service.category}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="font-semibold text-emerald-600">£{service.price.toLocaleString()}</p>
-                      </td>
-                      <td className="px-6 py-4 text-slate-900">{service.duration}</td>
-                      <td className="px-6 py-4">
-                        <p className="font-semibold text-slate-900">{service.subServices.length}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                          service.isActive
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-slate-200 text-slate-700'
-                        }`}>
-                          {service.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <button
-                          onClick={() => toggleExpand(service.id)}
-                          className="p-2 hover:bg-slate-200 rounded-lg transition-colors inline-flex"
-                        >
-                          {expandedServices.includes(service.id) ? (
-                            <ChevronUp size={18} />
-                          ) : (
-                            <ChevronDown size={18} />
-                          )}
-                        </button>
-                      </td>
-                    </tr>
-                    
-                    {/* Sub-Services Expansion */}
-                    {expandedServices.includes(service.id) && (
-                      <tr className="bg-slate-100 border-b border-slate-200">
-                        <td colSpan={7} className="px-6 py-4">
-                          <p className="text-sm font-semibold text-slate-900 mb-3">Sub-Services:</p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {service.subServices.map((subService) => (
-                              <div key={subService.id} className="bg-white border border-slate-200 rounded-lg p-3">
-                                <div className="flex items-start justify-between mb-2">
-                                  <p className="font-medium text-slate-900">{subService.name}</p>
-                                  <span className={`text-xs px-2 py-0.5 rounded font-semibold ${
-                                    subService.isActive ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-700'
-                                  }`}>
-                                    {subService.isActive ? 'Active' : 'Inactive'}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-slate-600 mb-2">{subService.description}</p>
-                                <div className="flex items-center justify-between text-sm text-slate-700">
-                                  <span>£{subService.price}</span>
-                                  <span>{subService.estimatedHours}h</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Add Service Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl border border-slate-200 p-6 md:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-            <h2 className="text-2xl font-bold text-slate-900 mb-6">Add New Service</h2>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">Service Name</label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  placeholder="e.g., Residential Planning Application"
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">Category</label>
-                <select
-                  name="category"
-                  value={formData.category}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {categoryOptions.map((cat) => (
-                    <option key={cat.value} value={cat.value}>{cat.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-900 mb-2">Price (£)</label>
-                  <input
-                    type="number"
-                    name="price"
-                    value={formData.price}
-                    onChange={handleInputChange}
-                    placeholder="e.g., 599"
-                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-900 mb-2">Duration</label>
-                  <input
-                    type="text"
-                    name="duration"
-                    value={formData.duration}
-                    onChange={handleInputChange}
-                    placeholder="e.g., 4-6 weeks"
-                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">Description</label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  placeholder="Service description..."
-                  rows={4}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">Images</label>
-                <div className="grid grid-cols-5 gap-2">
-                  {Array.from({ length: 5 }).map((_, idx) => {
-                    const preview = imagePreviews[idx];
-                    return (
-                      <div
-                        key={idx}
-                        className="aspect-square rounded-lg border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center text-xs text-slate-400 relative"
-                      >
-                        {preview ? (
-                          <div className="relative w-full h-full">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={preview} alt={`Selected image ${idx + 1}`} className="w-full h-full object-cover" />
-                            <button
-                              type="button"
-                              onClick={() => removeImageAt(idx)}
-                              className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center hover:bg-red-700"
-                              aria-label={`Remove image ${idx + 1}`}
-                            >
-                              ×
-                            </button>
-                          </div>
-                        ) : (
-                          <label className="w-full h-full flex items-center justify-center cursor-pointer text-slate-400 hover:text-slate-600">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              onChange={handleImagesChange}
-                              className="hidden"
-                            />
-                            <span>Upload</span>
-                          </label>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  {formData.images.length > 0
-                    ? `${formData.images.length} image${formData.images.length !== 1 ? 's' : ''} selected`
-                    : 'Select one or more images (up to 5).'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-8">
-              <button
-                onClick={handleAddService}
-                className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-              >
-                <Plus size={18} />
-                Create Service
-              </button>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors font-medium text-slate-900"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+      ) : (
+        <DataTable data={tableRows} columns={columns} />
       )}
     </div>
+  );
+}
+
+export default function ServicesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-6">
+          <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+            Loading services...
+          </div>
+        </div>
+      }
+    >
+      <ServicesPageContent />
+    </Suspense>
   );
 }

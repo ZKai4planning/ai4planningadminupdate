@@ -40,15 +40,19 @@ export interface SubService {
 
 // Team/Agent Types
 export interface TeamMember {
+  userId: any;
   id: string;
   name: string;
   email: string;
+  roleId?: string;
+  roleName?: string;
   role: 'agent_x' | 'agent_y' | 'admin' | 'architect';
   team: 'london' | 'india';
   region: 'uk' | 'in';
   agentCode: string;
   isActive: boolean;
   defaultPassword: boolean;
+  resetPasswordStatus: 'none' | 'pending' | 'approved' | 'rejected';
   assignedProjects: number;
   joinedDate: string;
   createdDate: string;

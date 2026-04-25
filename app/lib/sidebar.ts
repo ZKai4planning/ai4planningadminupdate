@@ -43,6 +43,18 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
   //   href: "/admin/messages",
   // },
   {
+    id: "services",
+    label: "Services",
+    icon: FiLayers,
+    href: "/admin/services"
+  },
+  {
+    id: "stages",
+    label: "Project Stages",
+    icon: FiLayers,
+    href: "/admin/ProjectStages"
+  },
+  {
     id: "clients",
     label: "Clients",
     icon: FiCheckSquare,
@@ -59,6 +71,12 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
     label: "Calendar",
     icon: FiCalendar,
     href: "/admin/calendar",
+  },
+  {
+    id: "leads",
+    label: "Leads",
+    icon: FiMessageSquare,
+    href: "/admin/leads",
   },
   {
     id: "logout",

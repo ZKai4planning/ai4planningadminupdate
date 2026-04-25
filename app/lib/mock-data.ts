@@ -81,6 +81,7 @@ export const mockClients: Client[] = [
 export const mockTeamMembers: TeamMember[] = [
   {
     id: 'tm001',
+    userId: 'tm001',
     name: 'James Mitchell',
     email: 'james.mitchell@company.co.uk',
     role: 'agent_x',
@@ -90,12 +91,14 @@ export const mockTeamMembers: TeamMember[] = [
    
     isActive: true,
     defaultPassword: true,
+    resetPasswordStatus: 'none',
     assignedProjects: 5,
     joinedDate: '2024-01-15',
     createdDate: '2024-01-15',
   },
   {
     id: 'tm002',
+    userId: 'tm002',
     name: 'Rebecca Thompson',
     email: 'rebecca.t@company.co.uk',
     role: 'agent_x',
@@ -105,12 +108,14 @@ export const mockTeamMembers: TeamMember[] = [
    
     isActive: true,
     defaultPassword: true,
+    resetPasswordStatus: 'pending',
     assignedProjects: 4,
     joinedDate: '2023-06-20',
     createdDate: '2023-06-20',
   },
   {
     id: 'tm003',
+    userId: 'tm003',
     name: 'Rajesh Patel',
     email: 'rajesh.p@company.in',
     role: 'agent_y',
@@ -120,12 +125,14 @@ export const mockTeamMembers: TeamMember[] = [
    
     isActive: true,
     defaultPassword: true,
+    resetPasswordStatus: 'none',
     assignedProjects: 6,
     joinedDate: '2024-03-10',
     createdDate: '2024-03-10',
   },
   {
     id: 'tm004',
+    userId: 'tm004',
     name: 'Priya Singh',
     email: 'priya.singh@company.in',
     role: 'agent_y',
@@ -135,12 +142,14 @@ export const mockTeamMembers: TeamMember[] = [
    
     isActive: true,
     defaultPassword: true,
+    resetPasswordStatus: 'approved',
     assignedProjects: 5,
     joinedDate: '2024-02-15',
     createdDate: '2024-02-15',
   },
   {
     id: 'tm005',
+    userId: 'tm005',
     name: 'David Brown',
     email: 'david.b@company.co.uk',
     role: 'architect',
@@ -150,12 +159,14 @@ export const mockTeamMembers: TeamMember[] = [
    
     isActive: true,
     defaultPassword: false,
+    resetPasswordStatus: 'rejected',
     assignedProjects: 3,
     joinedDate: '2023-08-05',
     createdDate: '2023-08-05',
   },
   {
     id: 'tm006',
+    userId: 'tm006',
     name: 'Alice Grant',
     email: 'alice.grant@company.co.uk',
     role: 'admin',
@@ -165,6 +176,7 @@ export const mockTeamMembers: TeamMember[] = [
    
     isActive: false,
     defaultPassword: false,
+    resetPasswordStatus: 'none',
     assignedProjects: 0,
     joinedDate: '2023-01-10',
     createdDate: '2023-01-10',

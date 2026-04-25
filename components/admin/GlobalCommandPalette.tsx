@@ -16,6 +16,7 @@ const COMMANDS: CommandItem[] = [
   { id: "clients", label: "Open Clients", href: "/admin/clients" },
   { id: "projects", label: "Open Projects", href: "/admin/projects" },
   { id: "team", label: "Open Team", href: "/admin/team" },
+  { id: "leads", label: "Open Leads", href: "/admin/leads" },
   // { id: "messages", label: "Open Chat", href: "/admin/messages" },
  
 ]
@@ -57,7 +58,7 @@ export default function GlobalCommandPalette() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed top-4 right-16 z-40 hidden md:flex h-10 items-center gap-2 px-3.5 bg-white/95 border border-slate-200 rounded-xl text-xs text-slate-700 shadow-sm hover:bg-white"
+        className="fixed right-16 top-3 z-40 hidden h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white/95 px-3.5 text-xs text-slate-700 shadow-sm hover:bg-white lg:flex xl:top-4"
       >
         <Search size={14} />
         Quick Search

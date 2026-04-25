@@ -1,12 +1,12 @@
 export function BlueprintLeftSection() {
   return (
-    <div className="lg:col-span-7 relative bg-slate-50 dark:bg-slate-950/50 p-8 flex flex-col justify-between overflow-hidden min-h-[400px]">
+    <div className="relative flex min-h-[280px] flex-col justify-between overflow-hidden bg-slate-50 p-6 dark:bg-slate-950/50 sm:min-h-[340px] sm:p-8 lg:col-span-7 lg:min-h-[400px]">
       {/* Graph Paper Texture */}
       <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/graph-paper.png')]"></div>
 
       <div className="relative">
         {/* Status Badge */}
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider mb-6">
+        <div className="mb-5 inline-flex max-w-full items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-primary sm:mb-6">
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
@@ -15,20 +15,20 @@ export function BlueprintLeftSection() {
         </div>
 
         {/* Heading */}
-        <h1 className="text-4xl font-bold text-slate-900 dark:text-white leading-tight mb-4">
+        <h1 className="mb-4 text-3xl font-bold leading-tight text-slate-900 dark:text-white sm:text-4xl">
           Accessing <br />
           <span className="text-primary italic">Structural Core</span>
         </h1>
 
         {/* Description */}
-        <p className="text-slate-500 dark:text-slate-400 max-w-sm text-sm leading-relaxed">
+        <p className="max-w-sm text-sm leading-relaxed text-slate-500 dark:text-slate-400">
           Initialize authentication sequence to modify living blueprints and AI-optimized structural modules.
         </p>
       </div>
 
       {/* AI Insight Card */}
-      <div className="relative group cursor-help w-fit">
-        <div className="flex items-center gap-4 p-4 border border-primary/20 bg-white dark:bg-slate-900 rounded-lg shadow-sm">
+      <div className="relative w-full max-w-md cursor-help group">
+        <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-white p-4 shadow-sm dark:bg-slate-900 sm:items-center sm:gap-4">
           <div className="flex-shrink-0 size-10 rounded bg-primary/5 flex items-center justify-center text-primary">
             <span className="material-symbols-outlined">lightbulb</span>
           </div>
@@ -43,7 +43,7 @@ export function BlueprintLeftSection() {
       </div>
 
       {/* Decorative Blueprint Sketch */}
-      <div className="absolute -bottom-20 -right-20 w-80 h-80 opacity-20 pointer-events-none">
+      <div className="pointer-events-none absolute -bottom-16 -right-16 h-56 w-56 opacity-20 sm:-bottom-20 sm:-right-20 sm:h-80 sm:w-80">
         <svg className="w-full h-full text-primary fill-none stroke-current stroke-1" viewBox="0 0 100 100">
           <rect height="60" width="80" x="10" y="10"></rect>
           <path d="M10 40 L90 40 M40 10 L40 70 M60 10 L60 70"></path>

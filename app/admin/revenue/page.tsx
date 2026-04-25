@@ -442,7 +442,34 @@ export default function RevenuePage() {
           </p>
           <span className="text-xs text-slate-500">Track due dates and owners</span>
         </div>
-        <DataTable data={pendingRows} columns={pendingColumns} />
+        <div className="md:hidden space-y-3">
+          {pendingRows.map((row) => (
+            <div key={row.id} className="rounded-lg border border-slate-200 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{row.clientName}</p>
+                  <p className="text-xs text-slate-500">Project: {row.projectId}</p>
+                </div>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                  row.isOverdue ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700"
+                }`}>
+                  {shortDate(row.dueDate)}
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <span className="text-slate-500">Amount</span>
+                <span className="font-semibold text-amber-700">{currency.format(row.amount)}</span>
+                <span className="text-slate-500">Ref</span>
+                <span className="font-mono text-xs">{row.paymentRef}</span>
+                <span className="text-slate-500">Owner</span>
+                <span className="text-slate-700">{row.followUpOwner}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="hidden md:block">
+          <DataTable data={pendingRows} columns={pendingColumns} />
+        </div>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -452,7 +479,36 @@ export default function RevenuePage() {
           </p>
           <span className="text-xs text-slate-500">Transactions and receipts</span>
         </div>
-        <DataTable data={receivedRows} columns={receivedColumns} />
+        <div className="md:hidden space-y-3">
+          {receivedRows.map((row) => (
+            <div key={row.id} className="rounded-lg border border-slate-200 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm font-semibold text-slate-900">{row.clientName}</p>
+                <button
+                  type="button"
+                  onClick={() => setSelectedInvoiceId(row.id)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  View
+                </button>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <span className="text-slate-500">Amount</span>
+                <span className="font-semibold text-emerald-700">{currency.format(row.amount)}</span>
+                <span className="text-slate-500">Date</span>
+                <span className="text-slate-700">{shortDate(row.paymentDate)}</span>
+                <span className="text-slate-500">Method</span>
+                <span className="capitalize text-slate-700">{row.paymentMethod.replace("_", " ")}</span>
+                <span className="text-slate-500">Txn</span>
+                <span className="font-mono text-xs">{row.transactionId}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="hidden md:block">
+          <DataTable data={receivedRows} columns={receivedColumns} />
+        </div>
       </section>
 
       {selectedInvoice && (

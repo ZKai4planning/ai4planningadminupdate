@@ -1,247 +1,321 @@
 "use client";
 
-import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
-
+import { FiChevronLeft, FiChevronRight, FiX } from "react-icons/fi";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { SIDEBAR_ITEMS } from "@/app/lib/sidebar";
 import { cn } from "@/app/lib/utils";
-import { Logo } from "./logo";
+import axiosInstance from "@/app/lib/axiosinstance";
+import {
+  readCurrentAuth,
+  resolveAuthEmail,
+  resolveAuthName,
+  resolveAuthUserId,
+} from "@/app/lib/auth-session";
 
-/* ---------------- Divider ---------------- */
-function SidebarDivider({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-3 my-4 px-4">
-      <div className="flex-1 h-px bg-slate-300" />
-      <span className="text-[10px] uppercase font-semibold tracking-widest text-black/40">
-        {label}
-      </span>
-      <div className="flex-1 h-px bg-slate-300" />
-    </div>
-  );
-}
+const PROFILE_CACHE_KEY = "adminProfile";
 
-/* ---------------- Sidebar ---------------- */
 export default function Sidebar({
   collapsed,
   onToggle,
-  onGetStarted,
   isOverlay = false,
+  isOpen = true,
 }: {
   collapsed: boolean;
   onToggle: () => void;
-  onGetStarted: () => void;
   isOverlay?: boolean;
+  isOpen?: boolean;
 }) {
-  const [openGroup, setOpenGroup] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
 
-  const userName = "Amelia Wright";
-  const email = "amelia.wright@example.co.uk";
+  const [userName, setUserName] = useState("Admin User");
+  const [email, setEmail] = useState("");
+  const [profilePicture, setProfilePicture] = useState("");
 
+  const [profileStatus, setProfileStatus] = useState<{
+    completionPercentage: number;
+    completedFields: number;
+    totalFields: number;
+  } | null>(null);
+
+  /* ---------------- ACTIVE ROUTE FIX ---------------- */
+  const isRouteActive = (href?: string) => {
+    if (!href) return false;
+
+    // ✅ Fix for dashboard root
+    if (href === "/admin") {
+      return pathname === "/admin" || pathname === "/admin/";
+    }
+
+    return pathname === href || pathname.startsWith(href + "/");
+  };
+
+  /* ---------------- LOAD DATA ---------------- */
+  useEffect(() => {
+    let isMounted = true;
+
+    const auth = readCurrentAuth();
+    const userId = resolveAuthUserId(auth);
+    const authName = resolveAuthName(auth);
+    const authEmail = resolveAuthEmail(auth);
+
+    if (authName) setUserName(authName);
+    if (authEmail) setEmail(authEmail);
+
+    const cachedProfile =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem(PROFILE_CACHE_KEY)
+        : null;
+
+    if (cachedProfile) {
+      try {
+        const parsed = JSON.parse(cachedProfile) as {
+          name?: string;
+          email?: string;
+          profilePicture?: string;
+        };
+
+        setUserName(parsed.name || authName || "Admin User");
+        setEmail(parsed.email || authEmail || "");
+        setProfilePicture(parsed.profilePicture || "");
+      } catch {}
+    }
+
+    const loadProfile = async () => {
+      if (!userId) return;
+
+      try {
+        const res = await axiosInstance.get(`/admin/profile/${userId}`);
+        const data = res?.data?.data ?? res?.data ?? {};
+
+        if (!isMounted) return;
+
+        setUserName(data.name || authName || "Admin User");
+        setEmail(data.email || authEmail || "");
+        setProfilePicture(data.profilePicture || "");
+      } catch {}
+    };
+
+    const loadProfileStatus = async () => {
+      if (!userId) return;
+
+      try {
+        const res = await axiosInstance.get(
+          `/admin/profile/${userId}/status`
+        );
+
+        const data = res?.data ?? {};
+
+        if (!isMounted) return;
+
+        setProfileStatus({
+          completionPercentage: data.completionPercentage ?? 0,
+          completedFields: data.completedFields ?? 0,
+          totalFields: data.totalFields ?? 0,
+        });
+      } catch (err) {
+        console.error("Profile status failed", err);
+      }
+    };
+
+    loadProfile();
+    loadProfileStatus();
+
+    const handleProfileUpdated = () => {
+      const latestProfile =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem(PROFILE_CACHE_KEY)
+          : null;
+
+      if (latestProfile) {
+        try {
+          const parsed = JSON.parse(latestProfile) as {
+            name?: string;
+            email?: string;
+            profilePicture?: string;
+          };
+
+          if (!isMounted) return;
+
+          setUserName(parsed.name || authName || "Admin User");
+          setEmail(parsed.email || authEmail || "");
+          setProfilePicture(parsed.profilePicture || "");
+        } catch {}
+      }
+
+      void loadProfile();
+      void loadProfileStatus();
+    };
+
+    window.addEventListener("admin-profile-updated", handleProfileUpdated);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("admin-profile-updated", handleProfileUpdated);
+    };
+  }, []);
+
+  /* ---------------- LOGOUT ---------------- */
   const handleLogout = () => {
-    sessionStorage.removeItem("currentAuth");
-    localStorage.removeItem("currentAuth");
-    document.cookie = "admin_auth=; path=/; max-age=0; samesite=lax";
+    sessionStorage.clear();
+    localStorage.clear();
+    document.cookie = "admin_auth=; path=/; max-age=0;";
     router.push("/");
     router.refresh();
   };
 
+  /* ---------------- UI ---------------- */
   return (
     <aside
       className={cn(
-        "bg-white text-slate-700 flex flex-col border-r border-slate-200",
-        "transition-all duration-300 ease-in-out",
-        // positioning & height
+        "flex flex-col overflow-hidden border-r bg-white transition-all duration-300",
         isOverlay
-          ? "fixed inset-y-0 left-0 z-40 h-screen"
+          ? "fixed inset-y-0 left-0 z-50 h-dvh w-[18rem] max-w-[85vw] shadow-xl"
           : "sticky top-0 h-screen",
-        // width & animation
-        collapsed
-          ? isOverlay
-            ? "-translate-x-full w-64"
-            : "w-20"
-          : "translate-x-0 w-64",
+        isOverlay
+          ? isOpen
+            ? "translate-x-0"
+            : "-translate-x-full"
+          : collapsed
+          ? "w-20"
+          : "w-64"
       )}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 h-16 border-b border-slate-200">
-        <div className="flex items-center gap-3 min-w-0">
-          <Logo collapsed={collapsed && !isOverlay} />
-          {!(collapsed && !isOverlay) && (
-            <span className="text-base font-semibold text-slate-900 truncate">
-              Ai4planning
-            </span>
+      {/* HEADER */}
+      <div className="flex h-16 shrink-0 items-center justify-between border-b px-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white">
+            A
+          </div>
+          {!collapsed && (
+            <span className="truncate font-semibold">Ai4planning</span>
           )}
         </div>
 
-        {/* Toggle only on desktop */}
         {!isOverlay && (
-          <button onClick={onToggle} className="p-2 rounded hover:bg-slate-100">
+          <button
+            type="button"
+            onClick={onToggle}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
             {collapsed ? <FiChevronRight /> : <FiChevronLeft />}
+          </button>
+        )}
+
+        {isOverlay && (
+          <button
+            type="button"
+            onClick={onToggle}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100"
+            aria-label="Close sidebar"
+          >
+            <FiX />
           </button>
         )}
       </div>
 
-      {/* Menu */}
-      <nav className="px-0 py-3 space-y-1 overflow-y-auto">
+      {/* MENU */}
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">
         {SIDEBAR_ITEMS.map((item) => {
           const Icon = item.icon;
-          const isOpen = openGroup === item.id;
-          const isActive = item.href
-            ? item.href === "/admin"
-              ? pathname === "/admin" || pathname === "/admin/"
-              : pathname === item.href || pathname.startsWith(item.href + "/")
-            : false;
-
-          /* -------- Section Dividers -------- */
-          // if (item.id === "employees") {
-          //   return (
-          //     <div key={item.id}>
-          //       {!collapsed && <SidebarDivider label="Employee" />}
-          //     </div>
-          //   )
-          // }
-
-          if (item.id === "reports") {
-            return (
-              <div key={item.id}>
-                {!collapsed && <SidebarDivider label="Cases" />}
-              </div>
-            );
-          }
+          const active = isRouteActive(item.href);
 
           if (item.id === "logout") {
             return (
               <button
                 key={item.id}
-                type="button"
-                onClick={() => {
-                  if (isOverlay) {
-                    onToggle();
-                  }
-                  handleLogout();
-                }}
-                className={cn(
-                  "w-full relative flex items-center rounded-md transition group",
-                  collapsed ? "justify-center px-3 py-3" : "gap-3 px-4 py-2",
-                  "text-red-600 hover:bg-red-50",
-                )}
+                onClick={handleLogout}
+                className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-red-600 hover:bg-red-50"
               >
-                <Icon className="text-lg text-red-600" />
-                {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
+                <Icon />
+                {!collapsed && <span className="truncate">{item.label}</span>}
               </button>
             );
           }
 
-          if (!item.children && item.href) {
-            return (
-              <Link
-                key={item.id}
-                href={item.href}
-                className={cn(
-                  "relative flex items-center rounded-md transition group",
-                  collapsed ? "justify-center px-3 py-3" : "gap-3 px-4 py-2",
-                  isActive ? "bg-blue-50 text-blue-600" : "hover:bg-slate-100",
-                )}
-                onClick={isOverlay ? onToggle : undefined}
-              >
-                {isActive && (
-                  <span className="absolute right-0 top-0 h-full w-1 bg-blue-600 rounded-r-md" />
-                )}
-
-                <Icon
-                  className={cn(
-                    "text-lg",
-                    isActive
-                      ? "text-blue-600"
-                      : "text-slate-500 group-hover:text-slate-700",
-                  )}
-                />
-
-                {!collapsed && (
-                  <span className="text-sm font-medium">{item.label}</span>
-                )}
-              </Link>
-            );
-          }
-
-          /* -------- Parent With Children -------- */
           return (
-            <div key={item.id}>
-              <button
-                onClick={() => setOpenGroup(isOpen ? null : item.id)}
-                className={cn(
-                  "w-full flex items-center rounded-md transition hover:bg-slate-100",
-                  collapsed ? "justify-center px-3 py-3" : "gap-3 px-4 py-2",
-                )}
-              >
-                <Icon className="text-lg text-slate-500" />
-                {!collapsed && (
-                  <span className="text-sm font-medium">{item.label}</span>
-                )}
-              </button>
-
-              {!collapsed && isOpen && (
-                <div className="ml-9 mt-1 space-y-1">
-                  {item.children?.map((child) => {
-                    const childActive =
-                      pathname === child.href ||
-                      pathname.startsWith(child.href + "/");
-
-                    return (
-                      <Link
-                        key={child.id}
-                        href={child.href}
-                        onClick={isOverlay ? onToggle : undefined}
-                        className={cn(
-                          "relative block px-3 py-2 rounded-md text-sm transition",
-                          childActive
-                            ? "bg-blue-50 text-blue-600"
-                            : "text-slate-500 hover:bg-slate-100",
-                        )}
-                      >
-                        {childActive && (
-                          <span className="absolute right-0 top-0 h-full w-1 bg-blue-600 rounded-r-md" />
-                        )}
-                        {child.label}
-                      </Link>
-                    );
-                  })}
-                </div>
+            <Link
+              key={item.id}
+              href={item.href || "#"}
+              className={cn(
+                "flex items-center gap-3 rounded-md px-3 py-2 transition",
+                collapsed && "justify-center",
+                active
+                  ? "bg-blue-50 text-blue-600"
+                  : "text-slate-600 hover:bg-slate-100"
               )}
-            </div>
+            >
+              <Icon
+                className={cn(
+                  active ? "text-blue-600" : "text-slate-500"
+                )}
+              />
+              {!collapsed && (
+                <span className="truncate text-sm font-medium">{item.label}</span>
+              )}
+            </Link>
           );
         })}
       </nav>
 
-      {/* Bottom Section */}
-      <div className="mt-auto border-t border-slate-200">
-        {/* <div className="p-3">
-          <button
-            onClick={onGetStarted}
-            className="w-full px-3 py-2 rounded-md bg-slate-100 hover:bg-slate-200 text-sm"
+      {/* PROFILE COMPLETION */}
+      {!collapsed && profileStatus && (
+        <div className="shrink-0 border-t px-4 py-3">
+          <div
+            onClick={() => router.push("/admin/profile")}
+            className="cursor-pointer bg-slate-50 p-3 rounded-lg hover:bg-slate-100"
           >
-            💬 {!collapsed && "Got Feedback?"}
-          </button>
-        </div> */}
-
-        {!collapsed && (
-          <div className="px-4 py-3 border-t border-slate-200">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold text-sm">
-                {userName.charAt(0)}
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-medium truncate">{userName}</p>
-                <p className="text-xs text-slate-400 truncate">{email}</p>
-              </div>
+            <div className="flex justify-between text-xs mb-2">
+              <span>Profile Completion</span>
+              <span>{profileStatus.completionPercentage}%</span>
             </div>
+
+            <div className="h-2 bg-slate-200 rounded-full">
+              <div
+                className="h-full bg-blue-600 transition-all"
+                style={{
+                  width: `${profileStatus.completionPercentage}%`,
+                }}
+              />
+            </div>
+
+            <p className="text-[11px] mt-2 text-slate-400">
+              {profileStatus.completedFields} of{" "}
+              {profileStatus.totalFields} completed
+            </p>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* USER */}
+      <div className="shrink-0 border-t px-4 py-3">
+        <Link
+          href="/admin/profile"
+          className="flex items-center gap-3 hover:bg-slate-100 p-2 rounded-md"
+        >
+          <div className="h-9 w-9 rounded-full bg-blue-600 text-white flex items-center justify-center overflow-hidden">
+            {profilePicture ? (
+              <img
+                src={profilePicture}
+                alt="profile"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              userName.charAt(0).toUpperCase()
+            )}
+          </div>
+
+          {!collapsed && (
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{userName}</p>
+              <p className="truncate text-xs text-gray-400">{email}</p>
+            </div>
+          )}
+        </Link>
       </div>
     </aside>
   );

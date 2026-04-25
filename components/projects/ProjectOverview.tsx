@@ -44,7 +44,7 @@ export default function ProjectOverview({
   return (
     <section className="mb-8 rounded-2xl border border-slate-200/80 bg-slate-50/40 p-5">
             {selectedStats && (
-        <div className="mb-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="border border-slate-200/80 rounded-xl p-4 bg-white">
             <p className="text-xs font-semibold text-slate-500 uppercase mb-3">Days Open</p>
             <div className="flex items-center gap-4">

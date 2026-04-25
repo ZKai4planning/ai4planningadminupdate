@@ -39,7 +39,7 @@ export default function AdminNotificationCenter() {
   }, [])
 
   return (
-    <div className="fixed top-4 right-4 z-40 flex flex-col items-end">
+    <div className="fixed right-3 top-3 z-40 flex flex-col items-end sm:right-4 sm:top-4">
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
@@ -53,7 +53,7 @@ export default function AdminNotificationCenter() {
       </button>
 
       {open && (
-        <div className="absolute top-12 right-0 w-96 max-w-[92vw] rounded-xl border border-slate-200 bg-white shadow-xl">
+        <div className="absolute right-0 top-12 w-80 max-w-[calc(100vw-1.5rem)] rounded-xl border border-slate-200 bg-white shadow-xl sm:w-96 sm:max-w-[92vw]">
           <div className="px-4 py-3 border-b border-slate-200">
             <p className="text-sm font-semibold text-slate-900">Notification Center</p>
             <p className="text-xs text-slate-500">Critical alerts and admin feedback queue</p>

@@ -1,31 +1,279 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
-import DataTable, { Column } from "@/components/datatable";
-import { mockClients, mockPayments, mockProjects } from "@/app/lib/mock-data";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import ProjectOverview from "@/components/projects/ProjectOverview";
-import ProjectRoadmap, {
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import axiosInstance from "@/app/lib/axiosinstance";
+import {
+  getProjectRoadmapInsights,
+  journeySteps,
   type RoadmapInsight,
-} from "@/components/projects/ProjectRoadmap";
+} from "@/app/lib/project-roadmap";
+import ProjectOverview from "@/components/projects/ProjectOverview";
+import ProjectRoadmap from "@/components/projects/ProjectRoadmap";
+import type { Client, Document, Project, ProjectClientQuestionnaire } from "@/types";
 
-const journeySteps = [
-  "Service Selection",
-  "Initial payment",
-  "Eligibility Check",
-  "Consultant Assignment",
-  "Project Assigned to Agent Y",
-   "Briefcase Creation",
-  "70% Advance Payment",
-  "Documents shared with Agent X",
-  "30% remaining payment",
-  "Council Submission",
-];
+type ApiService = {
+  serviceId?: string;
+  title?: string;
+  serviceName?: string;
+  name?: string;
+  description?: string;
+  image?: string;
+  status?: boolean;
+};
 
-const projectAssignedToAgentYStepIndex = journeySteps.findIndex(
-  (step) => step === "Project Assigned to Agent Y",
-);
+type ApiSubService = {
+  subServiceId?: string;
+  title?: string;
+  subServiceName?: string;
+  name?: string;
+  description?: string;
+  image?: string;
+  status?: boolean;
+};
+
+type ApiUser = {
+  _id?: string;
+  userId?: string;
+  fullName?: string;
+  email?: string;
+  phoneNumber?: string;
+  isActive?: boolean;
+} | null;
+
+type ApiProjectStage = {
+  _id?: string;
+  stageId?: string;
+  label?: string;
+  route?: string;
+  priority?: number;
+  initialStage?: boolean;
+  status?: boolean;
+} | null;
+
+type ApiAssignedAgentDetails =
+  | {
+      name?: string;
+      fullName?: string;
+      email?: string;
+      userId?: string;
+      id?: string;
+    }
+  | string
+  | null
+  | undefined;
+
+type ApiAgent =
+  | {
+      _id?: string;
+      id?: string;
+      userId?: string;
+      name?: string;
+      fullName?: string;
+      email?: string;
+      role?: string;
+      region?: string;
+      assignedAt?: string;
+    }
+  | string
+  | null
+  | undefined;
+
+type ApiProject = {
+  _id?: string;
+  projectId?: string;
+  userId?: string;
+  subServiceId?: string;
+  projectStageId?: string;
+  projectStatus?: string;
+  isDeleted?: boolean;
+  user?: ApiUser;
+  service?: ApiService | null;
+  subService?: ApiSubService | null;
+  projectStage?: ApiProjectStage;
+  agents?: ApiAgent[];
+  clientName?: string;
+  clientDetails?: {
+    _id?: string;
+    userId?: string;
+    email?: string;
+    fullName?: string;
+  } | null;
+  services?: ApiService[];
+  subServices?: ApiSubService[];
+  assignedAgent?: string | null;
+  assignedAgentUserId?: string | null;
+  assignedAgentDetails?: ApiAssignedAgentDetails;
+  status?: string;
+  currentStep?: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type ApiProjectsResponse = {
+  data?: ApiProject[];
+  pagination?: {
+    totalItems?: number;
+    currentPage?: number;
+    totalPages?: number;
+    pageSize?: number;
+    hasNextPage?: boolean;
+    hasPrevPage?: boolean;
+  };
+};
+
+type ApiEligibilityForm = {
+  _id?: string;
+  projectId?: string;
+  currentStep?: number;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  applicantAndProperty?: {
+    applicantDetails?: {
+      contactEmailPhone?: string;
+      fullName?: string;
+      firstName?: string;
+      middleName?: string;
+      lastName?: string;
+      emailAddress?: string;
+      phoneNumber?: string;
+      countryCode?: string;
+      postcode?: string;
+      siteAddress?: string;
+    };
+    councilApplicationHistory?: {
+      councilName?: string;
+      hasPreviousCouncilApplication?: boolean;
+      planningReferenceNumber?: string;
+      previousApplicationType?: string;
+      previousDevelopmentType?: string;
+      previousProposalDetails?: string;
+      projectComparison?: string;
+    };
+    propertyAndOwnership?: {
+      nearConservationAreaOrListedBuilding?: string;
+      ownershipStatus?: string;
+      propertyType?: string;
+      purposeOfDevelopment?: string;
+    };
+  };
+  worksAndMaterials?: {
+    descriptionOfWorks?: {
+      propsedWorksDescription?: string;
+      existingPropertyWidthM?: number | string;
+      distanceFromBoundaryM?: number | string;
+      existingPropertyHeightM?: number | string;
+      proposedExtensionHeightM?: number | string;
+      proposedExtensionWidthM?: number | string;
+      ridgeOrEavesHeightM?: number | string;
+    };
+    materials?: {
+      wallMaterials?: string;
+      roofMaterials?: string;
+      materialsMatchExisting?: string;
+      colourOrFinishNotes?: string;
+    };
+    plansDrawingsPhotographs?: {
+      locationPlan?: string | string[];
+      additionalDrawings?: string | string[];
+      existingAndProposedElevations?: string | string[];
+      photographsOfSite?: string | string[];
+      sitePlan?: string | string[];
+    };
+  };
+  siteConstraints?: {
+    accessAndParking?: {
+      accessOrParkingChanges?: string;
+      cycleStorageProvisions?: string;
+      newOrAlteredAccess?: string;
+    };
+    floodAndEnvironmentalRisk?: {
+      isSiteContaminatedLand?: string;
+      isSiteInFloodRiskArea?: string;
+      floodRiskAssesmentReport?: string | string[];
+    };
+    heritageAndListing?: {
+      isInConservationArea?: string;
+      isListedBuilding?: string;
+    };
+    preApplicationAdvice?: {
+      soughtPreAppAdvice?: string;
+      officerName?: string;
+      preApplicationAdviceSummary?: string;
+      preApplicationReferenceNumber?: string;
+    };
+    treesHedgesLandscaping?: {
+      treeSpecies?: string;
+      treesWithTPO?: string;
+      treesWithinFallingDistance?: string;
+      treeSurveyReport?: string | string[];
+    };
+  };
+  utilitiesAndConsents?: {
+    additionalConsents?: string;
+  };
+  completionStatus?: {
+    percentage?: number;
+    completedSteps?: number;
+  };
+};
+
+type ApiEligibilityResponse = {
+  data?: ApiEligibilityForm;
+};
+
+type PaginationState = {
+  totalItems: number;
+  currentPage: number;
+  totalPages: number;
+  pageSize: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+};
+
+type ProjectRow = {
+  id: string;
+  clientName: string;
+  clientId: string;
+  clientEmail: string;
+  agentX: string;
+  agentY: string;
+  projectId: string;
+  tenantId: string;
+  userId: string;
+  service: string;
+  subService: string;
+  assignedAgent: string;
+  status: string;
+  statusLabel: "Open" | "Closed";
+  currentStep: number;
+  progress: number;
+  createdAt: string;
+  updatedAt: string;
+  isClosed: boolean;
+};
+
+const DEFAULT_PAGINATION: PaginationState = {
+  totalItems: 0,
+  currentPage: 1,
+  totalPages: 1,
+  pageSize: 10,
+  hasNextPage: false,
+  hasPrevPage: false,
+};
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+const CLOSED_STATUSES = new Set([
+  "approved",
+  "rejected",
+  "completed",
+  "closed",
+  "cancelled",
+]);
+
+const clampStep = (value: number) => Math.max(0, Math.min(value, 10));
 
 const completedStepsByStatus: Record<string, number> = {
   pending: 0,
@@ -41,17 +289,167 @@ const completedStepsByStatus: Record<string, number> = {
   rejected: 10,
 };
 
-const getCompletedStepsForProject = (project: (typeof mockProjects)[0]) =>
-  completedStepsByStatus[project.status] ??
-  Math.min(
-    journeySteps.length,
-    Math.floor((project.progress / 100) * journeySteps.length),
-  );
+const formatStatusLabel = (value?: string) =>
+  (value ?? "pending")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 
-const getProgressForProject = (project: (typeof mockProjects)[0]) =>
-  Math.round(
-    (getCompletedStepsForProject(project) / journeySteps.length) * 100,
-  );
+const getServiceLabel = (project: ApiProject) =>
+  project.service?.title?.trim() ||
+  project.service?.serviceName?.trim() ||
+  project.service?.name?.trim() ||
+  project.services?.[0]?.title?.trim() ||
+  project.services?.[0]?.serviceName?.trim() ||
+  project.services?.[0]?.name?.trim() ||
+  "Unassigned service";
+
+const getSubServiceLabel = (project: ApiProject) => {
+  const directLabel =
+    project.subService?.title?.trim() ||
+    project.subService?.subServiceName?.trim() ||
+    project.subService?.name?.trim();
+
+  if (directLabel) return directLabel;
+  if (!project.subServices?.length) return "Not specified";
+
+  const labels = project.subServices
+    .map((item) => item.title?.trim() || item.subServiceName?.trim() || item.name?.trim())
+    .filter(Boolean);
+
+  return labels.length ? labels.join(", ") : "Not specified";
+};
+
+type ApiEligibilityApplicantDetails =
+  NonNullable<ApiEligibilityForm["applicantAndProperty"]>["applicantDetails"];
+
+const getAgentLabel = (agent: ApiAgent | ApiAssignedAgentDetails) => {
+  if (typeof agent === "string" && agent.trim()) return agent.trim();
+
+  if (agent && typeof agent === "object") {
+    if (agent.fullName?.trim()) return agent.fullName.trim();
+    if (agent.name?.trim()) return agent.name.trim();
+    if (agent.userId?.trim()) return agent.userId.trim();
+    if (agent.email?.trim()) return agent.email.trim();
+    if ("id" in agent && agent.id?.trim()) return agent.id.trim();
+  }
+
+  return "";
+};
+
+const getAssignedAgentLabel = (project: ApiProject) => {
+  const details = project.assignedAgentDetails;
+  const directAgents =
+    project.agents?.map((agent) => getAgentLabel(agent)).filter(Boolean) ?? [];
+
+  if (directAgents.length) return directAgents.join(", ");
+
+  if (details && typeof details === "object") {
+    const detailLabel = getAgentLabel(details);
+    if (detailLabel) return detailLabel;
+  }
+
+  if (typeof details === "string" && details.trim()) return details.trim();
+  if (project.assignedAgent?.trim()) return project.assignedAgent.trim();
+  if (project.assignedAgentUserId?.trim()) return project.assignedAgentUserId.trim();
+
+  return "Unassigned";
+};
+
+const getAgentRole = (agent: ApiAgent) => {
+  if (!agent || typeof agent !== "object") return "";
+  return (agent.role ?? "").trim().toLowerCase();
+};
+
+const getAgentAssignments = (project: ApiProject) => {
+  const directAgents = project.agents ?? [];
+  const agentX =
+    directAgents.find((agent) => getAgentRole(agent) === "agentx") ?? null;
+  const agentY =
+    directAgents.find((agent) => getAgentRole(agent) === "agenty") ?? null;
+
+  const agentXLabel = getAgentLabel(agentX);
+  const agentYLabel = getAgentLabel(agentY);
+  const orderedLabels = [agentXLabel, agentYLabel].filter(Boolean);
+
+  if (orderedLabels.length) {
+    const fallbackLabels = directAgents
+      .map((agent) => getAgentLabel(agent))
+      .filter(Boolean)
+      .filter((label) => !orderedLabels.includes(label));
+
+    return {
+      agentX: agentXLabel || fallbackLabels[0] || "Unassigned",
+      agentY: agentYLabel || fallbackLabels[1] || "Unassigned",
+      assignedAgent: [...orderedLabels, ...fallbackLabels].join(", "),
+    };
+  }
+
+  return {
+    agentX: getAssignedAgentLabel(project),
+    agentY: "Unassigned",
+    assignedAgent: getAssignedAgentLabel(project),
+  };
+};
+
+const getProjectStatusValue = (project: ApiProject) =>
+  project.projectStatus?.trim() || project.status?.trim() || "pending";
+
+const getProjectCurrentStep = (project: ApiProject, status: string) => {
+  if (typeof project.currentStep === "number") return clampStep(project.currentStep);
+
+  if (CLOSED_STATUSES.has(status.toLowerCase())) return 10;
+
+  if (typeof project.projectStage?.priority === "number") {
+    return clampStep(project.projectStage.priority);
+  }
+
+  return 0;
+};
+
+const mapStatusToProjectStatus = (status?: string): Project["status"] => {
+  const normalized = (status ?? "").toLowerCase();
+
+  switch (normalized) {
+    case "registered":
+      return "registered";
+    case "docs_received":
+    case "documents_received":
+      return "docs_received";
+    case "in_review":
+    case "eligibility_in_progress":
+    case "eligibility_completed":
+    case "in_progress":
+    case "open":
+      return "in_review";
+    case "architect_assigned":
+    case "consultant_assigned":
+      return "architect_assigned";
+    case "measurements_done":
+      return "measurements_done";
+    case "drawings_in_progress":
+      return "drawings_in_progress";
+    case "drawings_received":
+      return "drawings_received";
+    case "submitted_to_council":
+      return "submitted_to_council";
+    case "approved":
+    case "completed":
+    case "closed":
+      return "approved";
+    case "rejected":
+    case "cancelled":
+      return "rejected";
+    default:
+      return "pending";
+  }
+};
+
+const inferServiceType = (value: string): Project["serviceType"] => {
+  const normalized = value.toLowerCase();
+  if (normalized.includes("commercial")) return "commercial";
+  if (normalized.includes("extension")) return "extension";
+  return "residential";
+};
 
 const getProjectUpdateSummary = (status: string) => {
   const summaryByStatus: Record<string, string> = {
@@ -60,7 +458,7 @@ const getProjectUpdateSummary = (status: string) => {
     docs_received: "Initial documents were received and queued for review.",
     in_review: "Project is currently under internal planning review.",
     architect_assigned:
-      "Architect is assigned and design activities are in progress.",
+      "Consultant assignment is complete and internal delivery is underway.",
     measurements_done: "Site measurements are complete and verified.",
     drawings_in_progress: "Draft drawings are being prepared by the team.",
     drawings_received: "Drawings have been received and are being validated.",
@@ -68,460 +466,583 @@ const getProjectUpdateSummary = (status: string) => {
       "Application has been submitted to council and is awaiting response.",
     approved: "Council decision received: approved.",
     rejected: "Council decision received: rejected.",
+    in_progress: "Project delivery is in progress and the current stage is actively being worked on.",
+    completed: "Project work is complete and the case has been closed successfully.",
+    eligibility_in_progress:
+      "Eligibility checks are in progress and the case is being reviewed.",
   };
 
   return (
     summaryByStatus[status] ||
-    "Project was updated and is moving through workflow."
+    `${formatStatusLabel(status)} is the latest recorded update for this project.`
   );
 };
 
-type ProjectTableRow = {
-  id: string;
-  clientName: string;
-  clientId: string;
-  agentX: string;
-  agentY: string;
-  projectId: string;
-  tenantId: string;
-  isActive: boolean;
-  statusLabel: "Open" | "Closed";
+const getCompletedStepsForRow = (project: ProjectRow) =>
+  project.currentStep > 0
+    ? clampStep(project.currentStep)
+    : completedStepsByStatus[mapStatusToProjectStatus(project.status)] ?? 0;
+
+const getProgressForRow = (project: ProjectRow) =>
+  project.progress > 0
+    ? project.progress
+    : Math.round((getCompletedStepsForRow(project) / journeySteps.length) * 100);
+
+const getClientName = (project: ApiProject) =>
+  project.clientName?.trim() ||
+  project.user?.fullName?.trim() ||
+  project.clientDetails?.fullName?.trim() ||
+  (project.user?.userId?.trim() || project.userId?.trim()
+    ? `User ${(project.user?.userId?.trim() || project.userId?.trim()) as string}`
+    : "Unknown User");
+
+const getClientId = (project: ApiProject) =>
+  project.user?.userId?.trim() ||
+  project.clientDetails?.userId?.trim() ||
+  project.userId?.trim() ||
+  "N/A";
+
+const getClientEmail = (project: ApiProject) =>
+  project.user?.email?.trim() ||
+  project.clientDetails?.email?.trim() ||
+  "Not available";
+
+const getTenantId = (project: ApiProject) =>
+  project.user?._id?.trim() ||
+  project.clientDetails?._id?.trim() ||
+  project._id?.trim() ||
+  "N/A";
+
+const toText = (value: unknown) => {
+  if (value === undefined || value === null || value === "") return "";
+  return String(value);
 };
 
-function ProjectsPageContent() {
-  const searchParams = useSearchParams();
-  const referenceNow = new Date("2026-02-19T00:00:00Z").getTime();
-  const [searchTerm] = useState("");
-  const [filterStatus] = useState("");
-  const [selectedProject, setSelectedProject] = useState<
-    (typeof mockProjects)[0] | null
-  >(null);
-  const [activeProjectTab, setActiveProjectTab] = useState<
-    "overview" | "journey"
-  >("overview");
-  const [activeStep, setActiveStep] = useState(0);
+const joinValues = (...values: Array<string | undefined>) =>
+  values.map((value) => value?.trim()).filter(Boolean).join(", ");
 
-  const [projects] = useState(mockProjects);
+const getApplicantFullName = (applicantDetails?: ApiEligibilityApplicantDetails) => {
+  if (!applicantDetails) return "";
 
-  const projectStats = useMemo(() => {
-    const totalProjects = projects.length;
-    const closedProjects = projects.filter((project) =>
-      ["approved", "rejected"].includes(project.status),
-    ).length;
-    const openProjects = totalProjects - closedProjects;
-    const avgProgress = totalProjects
-      ? Math.round(
-          projects.reduce(
-            (sum, project) => sum + getProgressForProject(project),
-            0,
-          ) / totalProjects,
-        )
-      : 0;
-
-    return {
-      totalProjects,
-      openProjects,
-      closedProjects,
-      avgProgress,
-    };
-  }, [projects]);
-
-  const statsCards = useMemo(
-    () => [
-      {
-        label: "Total Projects",
-        value: `${projectStats.totalProjects}`,
-        tone: "text-slate-900",
-      },
-      {
-        label: "Open Projects",
-        value: `${projectStats.openProjects}`,
-        tone: "text-blue-600",
-      },
-      {
-        label: "Closed Projects",
-        value: `${projectStats.closedProjects}`,
-        tone: "text-blue-600",
-      },
-      {
-        label: "Avg Progress",
-        value: `${projectStats.avgProgress}%`,
-        tone: "text-slate-900",
-      },
-    ],
-    [projectStats],
+  const structuredName = joinValues(
+    applicantDetails.firstName,
+    applicantDetails.middleName,
+    applicantDetails.lastName,
   );
 
-  const filteredProjects = projects.filter((project) => {
-    const matchesSearch =
-      project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      project.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      project.id.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = !filterStatus || project.status === filterStatus;
-    return matchesSearch && matchesStatus;
-  });
+  return structuredName || applicantDetails.fullName?.trim() || "";
+};
 
-  const projectTableRows = useMemo<ProjectTableRow[]>(() => {
-    return filteredProjects.map((project) => {
-      const clientProjects = filteredProjects.filter(
-        (p) => p.clientId === project.clientId,
-      );
-      const isClosed = ["approved", "rejected"].includes(project.status);
+const getApplicantContact = (applicantDetails?: ApiEligibilityApplicantDetails) =>
+  joinValues(
+    applicantDetails?.emailAddress,
+    applicantDetails?.phoneNumber,
+    applicantDetails?.contactEmailPhone,
+  );
 
-      return {
-        id: project.id,
-        clientName: project.clientName,
+const getAllFileUrls = (value?: string | string[]) => {
+  if (typeof value === "string") {
+    return value.trim() ? [value.trim()] : [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.filter(
+      (item): item is string => typeof item === "string" && item.trim().length > 0,
+    );
+  }
+
+  return [];
+};
+
+const buildEligibilityQuestionnaire = (
+  eligibility: ApiEligibilityForm | null,
+  project: ProjectRow,
+): ProjectClientQuestionnaire | undefined => {
+  if (!eligibility) return undefined;
+
+  const applicantDetails = eligibility.applicantAndProperty?.applicantDetails;
+  const propertyAndOwnership =
+    eligibility.applicantAndProperty?.propertyAndOwnership;
+  const descriptionOfWorks =
+    eligibility.worksAndMaterials?.descriptionOfWorks;
+  const materials = eligibility.worksAndMaterials?.materials;
+  const accessAndParking = eligibility.siteConstraints?.accessAndParking;
+  const floodRisk = eligibility.siteConstraints?.floodAndEnvironmentalRisk;
+  const heritage = eligibility.siteConstraints?.heritageAndListing;
+  const preApp = eligibility.siteConstraints?.preApplicationAdvice;
+  const trees = eligibility.siteConstraints?.treesHedgesLandscaping;
+  const applicantFullName = getApplicantFullName(applicantDetails);
+  const applicantContact = getApplicantContact(applicantDetails);
+
+  return {
+    propertyDetails: {
+      applicantFullName: applicantFullName || project.clientName,
+      contactEmailOrPhone: applicantContact || project.clientEmail,
+      siteAddress: applicantDetails?.siteAddress || "Not provided",
+      postcode: applicantDetails?.postcode || "Not provided",
+      propertyType: propertyAndOwnership?.propertyType || "Not provided",
+      ownershipStatus: propertyAndOwnership?.ownershipStatus || "Not provided",
+      conservationOrListed:
+        propertyAndOwnership?.nearConservationAreaOrListedBuilding ||
+        joinValues(heritage?.isInConservationArea, heritage?.isListedBuilding) ||
+        "Not provided",
+      purposeOfDevelopment:
+        propertyAndOwnership?.purposeOfDevelopment || "Not provided",
+    },
+    dimensions: {
+      existingPropertyWidthM:
+        toText(descriptionOfWorks?.existingPropertyWidthM) || "Not provided",
+      existingPropertyDepthM:
+        toText(descriptionOfWorks?.distanceFromBoundaryM) || "Not provided",
+      proposedExtensionDepthM:
+        toText(descriptionOfWorks?.proposedExtensionWidthM) || "Not provided",
+      proposedExtensionHeightM:
+        toText(descriptionOfWorks?.proposedExtensionHeightM) || "Not provided",
+      externalMaterials:
+        joinValues(
+          materials?.wallMaterials,
+          materials?.roofMaterials,
+          materials?.colourOrFinishNotes,
+        ) || "Not provided",
+      briefDescription:
+        descriptionOfWorks?.propsedWorksDescription || "Not provided",
+    },
+    constraints: {
+      listedBuilding: heritage?.isListedBuilding || "Not provided",
+      tpo: trees?.treesWithTPO || "Not provided",
+      floodZone: floodRisk?.isSiteInFloodRiskArea || "Not provided",
+      vehicleAccess:
+        accessAndParking?.newOrAlteredAccess ||
+        accessAndParking?.accessOrParkingChanges ||
+        "Not provided",
+      preApplicationAdvice:
+        joinValues(
+          preApp?.soughtPreAppAdvice,
+          preApp?.preApplicationReferenceNumber,
+          preApp?.officerName,
+        ) || "Not provided",
+      additionalConsentsRequired:
+        eligibility.utilitiesAndConsents?.additionalConsents || "Not provided",
+    },
+  };
+};
+
+const buildEligibilityDocuments = (
+  eligibility: ApiEligibilityForm | null,
+  project: ProjectRow,
+): Document[] => {
+  if (!eligibility) return [];
+
+  const plans = eligibility.worksAndMaterials?.plansDrawingsPhotographs;
+  const floodRisk = eligibility.siteConstraints?.floodAndEnvironmentalRisk;
+  const trees = eligibility.siteConstraints?.treesHedgesLandscaping;
+
+  const sources = [
+    { name: "Location Plan", type: "site_plan" as const, urls: getAllFileUrls(plans?.locationPlan) },
+    { name: "Site Plan", type: "site_plan" as const, urls: getAllFileUrls(plans?.sitePlan) },
+    {
+      name: "Existing And Proposed Elevations",
+      type: "design" as const,
+      urls: getAllFileUrls(plans?.existingAndProposedElevations),
+    },
+    {
+      name: "Additional Drawings",
+      type: "design" as const,
+      urls: getAllFileUrls(plans?.additionalDrawings),
+    },
+    {
+      name: "Photographs Of Site",
+      type: "other" as const,
+      urls: getAllFileUrls(plans?.photographsOfSite),
+    },
+    {
+      name: "Flood Risk Assessment Report",
+      type: "environmental" as const,
+      urls: getAllFileUrls(floodRisk?.floodRiskAssesmentReport),
+    },
+    {
+      name: "Tree Survey Report",
+      type: "environmental" as const,
+      urls: getAllFileUrls(trees?.treeSurveyReport),
+    },
+  ];
+
+  return sources
+    .flatMap((item) =>
+      item.urls.map((url, index) => ({
+        id: `${project.projectId}-${item.name.toLowerCase().replace(/\s+/g, "-")}-${index + 1}`,
+        projectId: project.projectId,
         clientId: project.clientId,
-        agentX: project.agentX || "Unassigned",
-        agentY: project.agentY || "Unassigned",
-        projectId: clientProjects[0]?.id || project.id,
-        tenantId: clientProjects[1]?.id2 || project.id2 || "N/A",
-        isActive: !isClosed,
-        statusLabel: isClosed ? "Closed" : "Open",
-      };
-    });
-  }, [filteredProjects]);
+        name:
+          item.urls.length > 1
+            ? `${item.name} ${index + 1}`
+            : item.name,
+        type: item.type,
+        uploadedDate: eligibility.updatedAt || eligibility.createdAt || project.updatedAt,
+        uploadedBy: project.clientName,
+        fileSize: 0,
+        url,
+        status: "reviewed",
+        version: 1,
+      })),
+    );
+};
 
-  const projectColumns = useMemo<Column<ProjectTableRow>[]>(
-    () => [
-      {
-        key: "sno",
-        label: "S.No",
-        render: (_value, _row, index, startIndex) => (
-          <span className="font-semibold">{startIndex + index + 1}</span>
-        ),
-        sticky: true,
-        left: 0,
-      },
-      {
-        key: "clientName",
-        label: "Client Name",
-        sortable: true,
-        render: (value) => (
-          <span className="font-semibold text-slate-900">{value}</span>
-        ),
-      },
-      {
-        key: "clientId",
-        label: "Client ID",
-        sortable: true,
-      },
-      {
-        key: "agentX",
-        label: "Agent X",
-        sortable: true,
-      },
-      {
-        key: "agentY",
-        label: "Agent Y",
-        sortable: true,
-      },
-      {
-        key: "projectId",
-        label: "Project ID",
-        sortable: true,
-      },
-      {
-        key: "tenantId",
-        label: "Tenant ID",
-        sortable: true,
-      },
-      {
-        key: "statusLabel",
-        label: "Status",
-        sortable: true,
-        render: (value) => (
-          <span
-            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-              value === "Closed"
-                ? "bg-blue-50 text-blue-700"
-                : "bg-amber-50 text-amber-700"
-            }`}
-          >
-            {value}
-          </span>
-        ),
-      },
-      {
-        key: "actions",
-        label: "Action",
-        render: (_value, row) => (
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedProject(
-                projects.find((project) => project.id === row.id) ?? null,
-              );
-              setActiveProjectTab("overview");
-            }}
-            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
-          >
-            View Details
-          </button>
-        ),
-      },
-    ],
-    [projects],
+const mapProject = (project: ApiProject): ProjectRow => {
+  const status = getProjectStatusValue(project);
+  const currentStep = getProjectCurrentStep(project, status);
+  const resolvedUserId = project.userId?.trim() || project.user?.userId?.trim() || "";
+  const fallbackId =
+    project._id ||
+    project.projectId ||
+    `${resolvedUserId || "user"}-${project.createdAt || status}`;
+  const agents = getAgentAssignments(project);
+
+  return {
+    id: project.projectId?.trim() || fallbackId,
+    clientName: getClientName(project),
+    clientId: getClientId(project),
+    clientEmail: getClientEmail(project),
+    agentX: agents.agentX,
+    agentY: agents.agentY,
+    projectId: project.projectId?.trim() || project._id || "Unknown",
+    tenantId: getTenantId(project),
+    userId: resolvedUserId || "N/A",
+    service: getServiceLabel(project),
+    subService: getSubServiceLabel(project),
+    assignedAgent: agents.assignedAgent,
+    status,
+    statusLabel: CLOSED_STATUSES.has(status.toLowerCase()) ? "Closed" : "Open",
+    currentStep,
+    progress: Math.round((currentStep / 10) * 100),
+    createdAt: project.createdAt || "",
+    updatedAt: project.updatedAt || project.createdAt || "",
+    isClosed: CLOSED_STATUSES.has(status.toLowerCase()),
+  };
+};
+
+export default function ProjectsPage() {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [projects, setProjects] = useState<ProjectRow[]>([]);
+  const [selectedProject, setSelectedProject] = useState<ProjectRow | null>(null);
+  const [activeProjectTab, setActiveProjectTab] = useState<"overview" | "journey">(
+    "overview",
   );
+  const [activeStep, setActiveStep] = useState(0);
+  const [eligibilityData, setEligibilityData] = useState<ApiEligibilityForm | null>(
+    null,
+  );
+  const [eligibilityLoading, setEligibilityLoading] = useState(false);
+  const [eligibilityError, setEligibilityError] = useState("");
+  const [pagination, setPagination] = useState<PaginationState>(DEFAULT_PAGINATION);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const projectId = searchParams.get("projectId");
-    if (!projectId) {
-      return;
-    }
-    const match = projects.find((project) => project.id === projectId);
-    if (match) {
-      setSelectedProject(match);
-      setActiveProjectTab("overview");
-      const completed = getCompletedStepsForProject(match);
-      setActiveStep(Math.max(0, completed - 1));
-    }
-  }, [projects, searchParams]);
+    const query = new URLSearchParams(window.location.search).get("projectId") ?? "";
+    if (!query) return;
+    setSearchTerm(query);
+    setDebouncedSearch(query);
+  }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim());
+    }, 400);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProjects = async () => {
+      try {
+        setIsLoading(true);
+        setError("");
+
+        const response = await axiosInstance.get<ApiProjectsResponse>("/projects/all", {
+          params: {
+            page,
+            limit: pageSize,
+            ...(debouncedSearch ? { search: debouncedSearch } : {}),
+          },
+        });
+
+        if (!isMounted) return;
+
+        const rows = Array.isArray(response?.data?.data)
+          ? response.data.data.map(mapProject)
+          : [];
+        const nextPagination = response?.data?.pagination;
+
+        setProjects(rows);
+        setPagination({
+          totalItems: Math.max(0, nextPagination?.totalItems ?? 0),
+          currentPage: Math.max(1, nextPagination?.currentPage ?? page),
+          totalPages: Math.max(1, nextPagination?.totalPages ?? 1),
+          pageSize: Math.max(1, nextPagination?.pageSize ?? pageSize),
+          hasNextPage: Boolean(nextPagination?.hasNextPage),
+          hasPrevPage: Boolean(nextPagination?.hasPrevPage),
+        });
+      } catch (requestError) {
+        if (!isMounted) return;
+
+        const message =
+          (
+            requestError as {
+              response?: { data?: { message?: string } };
+              message?: string;
+            }
+          )?.response?.data?.message ||
+          (requestError as { message?: string })?.message ||
+          "Failed to load projects.";
+
+        setProjects([]);
+        setPagination((current) => ({
+          ...current,
+          currentPage: page,
+          pageSize,
+          hasNextPage: false,
+          hasPrevPage: page > 1,
+        }));
+        setError(message);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadProjects();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [page, pageSize, debouncedSearch]);
 
   useEffect(() => {
     if (!selectedProject || activeProjectTab !== "journey") {
       return;
     }
 
-    if (projectAssignedToAgentYStepIndex >= 0) {
-      setActiveStep(projectAssignedToAgentYStepIndex);
-    }
-  }, [selectedProject, activeProjectTab]);
+    const completedSteps =
+      eligibilityData?.completionStatus?.completedSteps ??
+      getCompletedStepsForRow(selectedProject);
+    setActiveStep(Math.max(0, completedSteps - 1));
+  }, [selectedProject, activeProjectTab, eligibilityData]);
 
-  const selectedClient = useMemo(() => {
+  useEffect(() => {
     if (!selectedProject) {
-      return null;
+      setEligibilityData(null);
+      setEligibilityError("");
+      setEligibilityLoading(false);
+      return;
     }
-    return (
-      mockClients.find((client) => client.id === selectedProject.clientId) ??
-      null
-    );
-  }, [selectedProject, referenceNow]);
 
-  const initialPaymentDate = useMemo(() => {
-    if (!selectedProject) {
-      return null;
-    }
-    if (selectedProject.initialPaymentDate) {
-      return selectedProject.initialPaymentDate;
-    }
-    const payment = mockPayments.find(
-      (item) =>
-        item.projectId === selectedProject.id && item.status === "completed",
-    );
-    return payment?.paymentDate ?? null;
-  }, [selectedProject]);
+    let isMounted = true;
 
-  const selectedStats = useMemo(() => {
-    if (!selectedProject) {
-      return null;
-    }
-    const assigned = [
-      selectedProject.agentX,
-      selectedProject.agentY,
-      selectedProject.architect,
-    ].filter(Boolean).length;
-    const created = new Date(selectedProject.createdDate);
-    const daysOpen = Math.max(
-      0,
-      Math.floor((referenceNow - created.getTime()) / (1000 * 60 * 60 * 24)),
-    );
-    const completedSteps = getCompletedStepsForProject(selectedProject);
-    return {
-      assigned,
-      daysOpen,
-      documents: selectedProject.documents.length,
-      completedSteps,
+    const loadEligibility = async () => {
+      try {
+        setEligibilityLoading(true);
+        setEligibilityError("");
+
+        const response = await axiosInstance.get<ApiEligibilityResponse>(
+          `/eligibility/${selectedProject.projectId}`,
+        );
+
+        if (!isMounted) return;
+        setEligibilityData(response?.data?.data ?? null);
+      } catch (requestError) {
+        if (!isMounted) return;
+
+        const message =
+          (
+            requestError as {
+              response?: { data?: { message?: string } };
+              message?: string;
+            }
+          )?.response?.data?.message ||
+          (requestError as { message?: string })?.message ||
+          "Failed to load eligibility details.";
+
+        setEligibilityData(null);
+        setEligibilityError(message);
+      } finally {
+        if (isMounted) {
+          setEligibilityLoading(false);
+        }
+      }
+    };
+
+    loadEligibility();
+
+    return () => {
+      isMounted = false;
     };
   }, [selectedProject]);
 
+  const stats = useMemo(() => {
+    const closed = projects.filter((project) => project.isClosed).length;
+    const open = projects.length - closed;
+    const avgProgress = projects.length
+      ? Math.round(
+          projects.reduce((sum, project) => sum + project.progress, 0) /
+            projects.length,
+        )
+      : 0;
+
+    return {
+      total: pagination.totalItems,
+      open,
+      closed,
+      avgProgress,
+    };
+  }, [pagination.totalItems, projects]);
+
+  const pageStart = pagination.totalItems
+    ? (pagination.currentPage - 1) * pagination.pageSize + 1
+    : 0;
+  const pageEnd = pageStart ? pageStart + projects.length - 1 : 0;
+
+  const selectedProjectDetail = useMemo<Project | null>(() => {
+    if (!selectedProject) return null;
+
+    const questionnaire = buildEligibilityQuestionnaire(
+      eligibilityData,
+      selectedProject,
+    );
+    const documents = buildEligibilityDocuments(eligibilityData, selectedProject);
+    const applicantDetails = eligibilityData?.applicantAndProperty?.applicantDetails;
+    const detailProgress =
+      eligibilityData?.completionStatus?.percentage ?? getProgressForRow(selectedProject);
+
+    return {
+      id: selectedProject.projectId,
+      id2: selectedProject.tenantId !== "N/A" ? selectedProject.tenantId : undefined,
+      serviceId: "",
+      clientId: selectedProject.clientId,
+      clientName: selectedProject.clientName,
+      title:
+        selectedProject.service !== "Unassigned service"
+          ? selectedProject.service
+          : `Project ${selectedProject.projectId}`,
+      description: "Project details are available from the live projects list.",
+      serviceType: inferServiceType(
+        `${selectedProject.service} ${selectedProject.subService}`,
+      ),
+      selectedService: selectedProject.service,
+      selectedSubService:
+        selectedProject.subService !== "Not specified"
+          ? selectedProject.subService
+          : undefined,
+      location: applicantDetails?.siteAddress || "Not available",
+      postcode: applicantDetails?.postcode || "Not available",
+      status: mapStatusToProjectStatus(selectedProject.status),
+      createdDate: selectedProject.createdAt || new Date().toISOString(),
+      updatedDate:
+        eligibilityData?.updatedAt ||
+        selectedProject.updatedAt ||
+        selectedProject.createdAt ||
+        new Date().toISOString(),
+      agentX:
+        selectedProject.agentX !== "Unassigned" ? selectedProject.agentX : undefined,
+      agentY:
+        selectedProject.agentY !== "Unassigned" ? selectedProject.agentY : undefined,
+      progress: detailProgress,
+      estimatedCompletionDate: "Not available",
+      councilReference: "Not available",
+      councilName: "Not available",
+      documents,
+      clientQuestionnaire: questionnaire,
+    };
+  }, [selectedProject, eligibilityData]);
+
+  const selectedClient = useMemo<Client | null>(() => {
+    if (!selectedProject) return null;
+
+    const applicantDetails = eligibilityData?.applicantAndProperty?.applicantDetails;
+
+    return {
+      id: selectedProject.clientId,
+      name: selectedProject.clientName,
+      email:
+        getApplicantContact(applicantDetails) ||
+        (selectedProject.clientEmail !== "Not available"
+          ? selectedProject.clientEmail
+          : ""),
+      phone: "",
+      address: applicantDetails?.siteAddress || "Not available",
+      postcode: applicantDetails?.postcode || "Not available",
+      serviceType: "residential",
+      status: "registered",
+      joinedDate: selectedProject.createdAt || new Date().toISOString(),
+      paymentStatus: "pending",
+      package: "basic",
+    };
+  }, [selectedProject, eligibilityData]);
+
+  const selectedStats = useMemo(() => {
+    if (!selectedProject) return null;
+
+    const createdAt = new Date(selectedProject.createdAt);
+    const daysOpen = Number.isNaN(createdAt.getTime())
+      ? 0
+      : Math.max(
+          0,
+          Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24)),
+        );
+
+    return {
+      assigned: [selectedProject.agentX, selectedProject.agentY].filter(
+        (value) => value && value !== "Unassigned",
+      ).length,
+      daysOpen,
+      documents: buildEligibilityDocuments(eligibilityData, selectedProject).length,
+      completedSteps:
+        eligibilityData?.completionStatus?.completedSteps ??
+        getCompletedStepsForRow(selectedProject),
+    };
+  }, [selectedProject, eligibilityData]);
+
   const stepInsights = useMemo<RoadmapInsight[]>(() => {
-    if (!selectedProject) {
-      return [];
-    }
-    const agentX = selectedProject.agentX || "Unassigned";
-    const agentY = selectedProject.agentY || "Unassigned";
-    const architect = selectedProject.architect || "Unassigned";
-    const normalizedServiceType =
-      selectedProject.serviceType.charAt(0).toUpperCase() +
-      selectedProject.serviceType.slice(1);
-    const selectedServiceLabel =
-      selectedProject.selectedService || normalizedServiceType;
-    const selectedSubServiceLabel =
-      selectedProject.selectedSubService || "Not specified";
+    if (!selectedProjectDetail) return [];
 
-    return [
-      {
-        title: "Service selection",
-        stage: "Service Intake",
-       
-        summary:
-          "Client session validated and selected service preferences captured.",
-        kpis: [
-          { label: "Service", value: selectedServiceLabel },
-          { label: "Sub Service", value: selectedSubServiceLabel },
-          { label: "Location", value: selectedProject.location },
-          { label: "Service Id", value: selectedProject.serviceId },
-        ],
-        notes: [
-          "Service selected by client",
-          "Sub-service option captured",
-          "Ready for eligibility checks",
-        ],
-      },
-      {
-        title: "Initial payment",
-        stage: "Billing",
-       
-        summary: "Initial payment captured to kick off the project lifecycle.",
-        kpis: [
-          { label: "Paid", value: "39.99" },
-          { label: "Status", value: "On track" },
-        ],
-        notes: ["Payment received"],
-      },
-      {
-        title: "Eligibility check",
-        stage: "Screening",
-       
-        summary:
-          "Initial property details and planning constraints captured for eligibility screening.",
-        kpis: [],
-        notes: [
-          "Questionnaire responses captured",
-          "Constraints recorded for validation",
-          "Ready for consultant review",
-        ],
-      },
-      {
-        title: "Consultant assigned",
-        stage: "Consultation",
-  
-        summary:
-          "Consultant assigned to review scope and coordinate next steps.",
-        kpis: [
-          { label: "Consultant", value: architect },
-          { label: "Team", value: `${agentX} / ${agentY}` },
-          { label: "Handoff", value: "Completed" },
-        ],
-        notes: ["Internal handoff done", "Kickoff completed"],
-      },
-      {
-        title: "Project Assigned to Agent Y",
-        stage: "Cross-team",
-   
-        summary: "Cross-team coordination established for delivery alignment.",
-        kpis: [
-          { label: "Agent X", value: agentX },
-          { label: "Agent Y", value: agentY },
-          { label: "Collaboration", value: "Active" },
-        ],
-        notes: ["Cross-team setup completed", "Dependencies aligned"],
-      },
-      {
-        title: "Briefcase creation",
-        stage: "Handover Package",
-
-        summary:
-          "Execution briefcase is created with all scoped documents, constraints, and handoff notes.",
-        kpis: [
-          { label: "Package", value: "Created" },
-          { label: "Owner", value: agentX },
-          { label: "Shared With", value: agentY },
-        ],
-        notes: [
-          "Handoff brief prepared and versioned",
-          "Supporting documents attached to execution package",
-          "Ready for 70% payment milestone and downstream tasks",
-        ],
-      },
-      {
-        title: "70% payment made",
-        stage: "Billing",
-   
-        summary: "Payment milestone reached, enabling cross-team execution.",
-        kpis: [
-          { label: "Payment", value: "70% paid" },
-          { label: "Phase", value: "Collaboration" },
-          { label: "Risk", value: "Low" },
-        ],
-        notes: ["Milestone achieved", "Execution phase started"],
-      },
-      {
-        title: "Documents shared with Agent X",
-        stage: "Documents",
-
-        summary: "Key documents shared and initial work completed.",
-        kpis: [
-          { label: "Documents", value: `${selectedProject.documents.length}` },
-          {
-            label: "Updated",
-            value: new Date(selectedProject.updatedDate).toLocaleDateString(
-              "en-GB",
-            ),
-          },
-          {
-            label: "Progress",
-            value: `${getProgressForProject(selectedProject)}%`,
-          },
-        ],
-        notes: ["Documents verified", "Work in progress"],
-      },
-      {
-        title: "30% remaining payment",
-        stage: "Billing",
-  
-        summary: "Final payment pending prior to council submission.",
-        kpis: [
-          { label: "Pending", value: "30%" },
-          { label: "Council", value: selectedProject.councilName },
-          { label: "Reference", value: selectedProject.councilReference },
-        ],
-        notes: ["Payment reminder sent", "Awaiting settlement"],
-      },
-      {
-        title: "Submitted to council",
-        stage: "Submission",
-     
-        summary:
-          "Project submitted for approval and awaiting council decision.",
-        kpis: [
-          { label: "Council", value: selectedProject.councilName },
-          { label: "Reference", value: selectedProject.councilReference },
-          {
-            label: "Updated",
-            value: new Date(selectedProject.updatedDate).toLocaleDateString(
-              "en-GB",
-            ),
-          },
-        ],
-        notes: ["Submission completed", "Decision pending"],
-      },
-    ];
-  }, [selectedProject]);
+    return getProjectRoadmapInsights({
+      project: selectedProjectDetail,
+      progress: selectedProjectDetail.progress,
+    });
+  }, [selectedProjectDetail]);
 
   const activeInsight = stepInsights[activeStep];
   const completedStepsCount = selectedStats?.completedSteps ?? 0;
   const nextDueStepIndex =
     completedStepsCount < journeySteps.length ? completedStepsCount : null;
+  const currentStepIndex =
+    nextDueStepIndex ??
+    Math.max(0, Math.min(completedStepsCount - 1, journeySteps.length - 1));
   const selectedProjectProgress = selectedProject
-    ? getProgressForProject(selectedProject)
+    ? eligibilityData?.completionStatus?.percentage ?? getProgressForRow(selectedProject)
     : 0;
   const currentJourneyStage =
     journeySteps[
       Math.min(completedStepsCount, Math.max(0, journeySteps.length - 1))
     ];
-  const lastUpdateSummary = getProjectUpdateSummary(
-    selectedProject?.status || "",
-  );
+  const lastUpdateSummary = selectedProject
+    ? getProjectUpdateSummary(selectedProject.status)
+    : "";
 
   return (
-    <div className="space-y-6 animate-enter">
-      <div className="relative">
-        {selectedProject && (
-          <>
-            <div className="mb-2 flex items-center gap-2 flex-wrap">
+    <div className="animate-enter space-y-6">
+      {selectedProject && selectedProjectDetail && (
+        <>
+          <div className="relative">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
               <button
+                type="button"
                 onClick={() => setSelectedProject(null)}
                 className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 hover:bg-blue-100"
               >
@@ -530,9 +1051,9 @@ function ProjectsPageContent() {
             </div>
 
             <div className="rounded-2xl bg-white/90 p-4 ring-1 ring-slate-200/70">
-              <div className="flex items-start gap-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
                 <h2 className="mt-2 text-2xl font-bold text-slate-900">
-                  {selectedProject.title}
+                  {selectedProjectDetail.title}
                 </h2>
 
                 <div className="ml-auto flex gap-3 rounded-lg bg-slate-50/80 px-4 py-2 ring-1 ring-slate-200/60">
@@ -558,7 +1079,9 @@ function ProjectsPageContent() {
                       stroke="#2563eb"
                       strokeWidth="4"
                       strokeDasharray={`${2 * Math.PI * 16}`}
-                      strokeDashoffset={`${2 * Math.PI * 16 * (1 - selectedProjectProgress / 100)}`}
+                      strokeDashoffset={`${
+                        2 * Math.PI * 16 * (1 - selectedProjectProgress / 100)
+                      }`}
                       strokeLinecap="round"
                       style={{ transition: "stroke-dashoffset 0.8s ease" }}
                     />
@@ -575,138 +1098,395 @@ function ProjectsPageContent() {
                 </div>
               </div>
             </div>
-          </>
-        )}
-      </div>
-
-      {selectedProject ? (
-        <div className="animate-enter rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200/70">
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                {activeProjectTab === "overview"
-                  ? "Project Overview"
-                  : "Client Journey"}
-              </h2>
-              <span className="text-xs text-slate-500">
-                {activeProjectTab === "overview"
-                  ? "Client info, project info and latest update"
-                  : "Roadmap and step-level insights"}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
-                <button
-                  type="button"
-                  onClick={() => setActiveProjectTab("overview")}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    activeProjectTab === "overview"
-                      ? "bg-white text-blue-700 shadow-sm"
-                      : "text-slate-700 hover:bg-slate-200"
-                  }`}
-                >
-                  Project Overview
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveProjectTab("journey")}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    activeProjectTab === "journey"
-                      ? "bg-white text-blue-700 shadow-sm"
-                      : "text-slate-700 hover:bg-slate-200"
-                  }`}
-                >
-                  Client Journey
-                </button>
-              </div>
-              <Link
-                href={`/admin/logs?projectId=${selectedProject.id}`}
-                className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200"
-              >
-                Project Logs
-              </Link>
-            </div>
           </div>
 
-          {activeProjectTab === "overview" && (
-            <div key={`${selectedProject.id}-overview`} className="animate-enter">
-              <ProjectOverview
-                project={selectedProject}
-                selectedClient={selectedClient}
-                selectedStats={selectedStats}
-                initialPaymentDate={initialPaymentDate}
-                currentJourneyStage={currentJourneyStage}
-                lastUpdateSummary={lastUpdateSummary}
-                progress={selectedProjectProgress}
-              />
-            </div>
-          )}
-
-          {activeProjectTab === "journey" && (
-            <div key={`${selectedProject.id}-journey`} className="animate-enter">
-              <ProjectRoadmap
-                project={selectedProject}
-                journeySteps={journeySteps}
-                completedStepsCount={completedStepsCount}
-                nextDueStepIndex={nextDueStepIndex}
-                activeStep={activeStep}
-                setActiveStep={setActiveStep}
-                activeInsight={activeInsight}
-              />
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-6">
-          <div className="animate-enter rounded-2xl bg-white/90 px-5 py-4 ring-1 ring-slate-200/70">
-            <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-              {statsCards.map((item, idx) => (
-                <div
-                  key={item.label}
-                  className={`rounded-lg px-2 py-1 hover-lift ${
-                    idx < 3
-                      ? "xl:border-r xl:border-slate-200 xl:pl-2 xl:pr-4"
-                      : "xl:pl-4"
-                  }`}
+          <div className="animate-enter rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200/70">
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  {activeProjectTab === "overview"
+                    ? "Project Overview"
+                    : "Client Journey"}
+                </h2>
+                <span className="text-xs text-slate-500">
+                  {activeProjectTab === "overview"
+                    ? "Client info, project info and latest update"
+                    : "Roadmap and step-level insights"}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setActiveProjectTab("overview")}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      activeProjectTab === "overview"
+                        ? "bg-white text-blue-700 shadow-sm"
+                        : "text-slate-700 hover:bg-slate-200"
+                    }`}
+                  >
+                    Project Overview
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveProjectTab("journey")}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      activeProjectTab === "journey"
+                        ? "bg-white text-blue-700 shadow-sm"
+                        : "text-slate-700 hover:bg-slate-200"
+                    }`}
+                  >
+                    Client Journey
+                  </button>
+                </div>
+                <Link
+                  href={`/admin/logs?projectId=${selectedProject.projectId}`}
+                  className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200"
                 >
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    {item.label}
-                  </p>
-                  <p className={`mt-1 text-2xl font-bold ${item.tone}`}>
-                    {item.value}
-                  </p>
+                  Project Logs
+                </Link>
+              </div>
+            </div>
+
+            {eligibilityError && (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                {eligibilityError}
+              </div>
+            )}
+
+            {eligibilityLoading && (
+              <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                Loading eligibility details...
+              </div>
+            )}
+
+            {activeProjectTab === "overview" && (
+              <div key={`${selectedProject.projectId}-overview`} className="animate-enter">
+                <ProjectOverview
+                  project={selectedProjectDetail}
+                  selectedClient={selectedClient}
+                  selectedStats={selectedStats}
+                  initialPaymentDate={null}
+                  currentJourneyStage={currentJourneyStage}
+                  lastUpdateSummary={lastUpdateSummary}
+                  progress={selectedProjectProgress}
+                />
+              </div>
+            )}
+
+            {activeProjectTab === "journey" && (
+              <div key={`${selectedProject.projectId}-journey`} className="animate-enter">
+                <ProjectRoadmap
+                  project={selectedProjectDetail}
+                  journeySteps={journeySteps}
+                  completedStepsCount={completedStepsCount}
+                  nextDueStepIndex={nextDueStepIndex}
+                  currentStepIndex={currentStepIndex}
+                  activeStep={activeStep}
+                  setActiveStep={setActiveStep}
+                  activeInsight={activeInsight}
+                  eligibilityData={eligibilityData}
+                />
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {!selectedProject && (
+        <>
+      <div className="rounded-2xl bg-white/90 px-5 py-4 ring-1 ring-slate-200/70">
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+          <div className="rounded-lg px-2 py-1 xl:border-r xl:border-slate-200 xl:pr-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Total Projects
+            </p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">{stats.total}</p>
+          </div>
+          <div className="rounded-lg px-2 py-1 xl:border-r xl:border-slate-200 xl:px-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Open On Page
+            </p>
+            <p className="mt-1 text-2xl font-bold text-blue-600">{stats.open}</p>
+          </div>
+          <div className="rounded-lg px-2 py-1 xl:border-r xl:border-slate-200 xl:px-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Closed On Page
+            </p>
+            <p className="mt-1 text-2xl font-bold text-blue-600">{stats.closed}</p>
+          </div>
+          <div className="rounded-lg px-2 py-1 xl:pl-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Avg Progress
+            </p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">
+              {stats.avgProgress}%
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl bg-white p-6 ring-1 ring-slate-200/70">
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Projects</h2>
+            <p className="text-xs text-slate-500">
+              Server-side search by project ID, user ID, status, assigned agent,
+              service, or subservice.
+            </p>
+          </div>
+          <span className="text-xs text-slate-500">
+            {pageStart > 0
+              ? `Showing ${pageStart}-${pageEnd} of ${pagination.totalItems}`
+              : "No projects to show"}
+          </span>
+        </div>
+
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative w-full lg:max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(event) => {
+                setPage(1);
+                setSearchTerm(event.target.value);
+              }}
+              placeholder="Search project, user, status, agent, service..."
+              className="w-full rounded-xl border border-slate-200 bg-slate-50/70 py-2.5 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <select
+              value={pageSize}
+              onChange={(event) => {
+                setPage(1);
+                setPageSize(Number(event.target.value));
+              }}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {PAGE_SIZE_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option} per page
+                </option>
+              ))}
+            </select>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-600">
+              Page {pagination.currentPage} of {pagination.totalPages}
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+            Loading projects...
+          </div>
+        ) : projects.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+            No projects found for the current search.
+          </div>
+        ) : (
+          <>
+            <div className="space-y-3 md:hidden">
+              {projects.map((project, index) => (
+                <div
+                  key={project.id}
+                  className="rounded-xl border border-slate-200 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {project.clientName}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Client ID: {project.clientId}
+                      </p>
+                    </div>
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        project.isClosed
+                          ? "bg-blue-50 text-blue-700"
+                          : "bg-amber-50 text-amber-700"
+                      }`}
+                    >
+                      {project.statusLabel}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <span className="text-slate-500">S.No</span>
+                    <span className="text-slate-700">{pageStart + index}</span>
+                    <span className="text-slate-500">Project ID</span>
+                    <span className="text-slate-700">{project.projectId}</span>
+                    <span className="text-slate-500">Tenant ID</span>
+                    <span className="text-slate-700">{project.tenantId}</span>
+                    <span className="text-slate-500">Agent X</span>
+                    <span className="text-slate-700">{project.agentX}</span>
+                    <span className="text-slate-500">Agent Y</span>
+                    <span className="text-slate-700">{project.agentY}</span>
+                    <span className="text-slate-500">Status Detail</span>
+                    <span className="text-slate-700">
+                      {formatStatusLabel(project.status)}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedProject(project);
+                      setActiveProjectTab("overview");
+                    }}
+                    className="mt-3 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
+                  >
+                    View Details
+                  </button>
                 </div>
               ))}
             </div>
-          </div>
 
-          <div className="animate-enter hover-lift rounded-2xl bg-white p-6 ring-1 ring-slate-200/70">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">
-                {filteredProjects.length} Project
-                {filteredProjects.length !== 1 ? "s" : ""}
-              </h2>
-              <span className="text-xs text-slate-500">
-                Search, filter, sort and open project details
-              </span>
+            <div className="hidden overflow-auto rounded-xl border border-slate-200 md:block">
+              <table className="min-w-[1100px] w-full table-auto">
+                <thead className="bg-slate-100/90">
+                  <tr className="border-b border-slate-200">
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">
+                      S.No
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">
+                      Client Name
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">
+                      Client ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">
+                      Agent X
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">
+                      Agent Y
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">
+                      Project ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">
+                      Tenant ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projects.map((project, index) => (
+                    <tr
+                      key={project.id}
+                      className="border-t border-slate-100 hover:bg-slate-50"
+                    >
+                      <td className="px-4 py-3 text-sm font-semibold text-slate-700">
+                        {pageStart + index}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-semibold text-slate-900">
+                        <div>
+                          <p>{project.clientName}</p>
+                          <p className="mt-1 text-xs font-normal text-slate-500">
+                            Service: {project.service}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-700">
+                        <div>
+                          <p>{project.clientId}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Subservice: {project.subService}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-700">
+                        {project.agentX}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-700">
+                        {project.agentY}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-medium text-slate-700">
+                        {project.projectId}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {project.tenantId}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            project.statusLabel === "Closed"
+                              ? "bg-blue-50 text-blue-700"
+                              : "bg-amber-50 text-amber-700"
+                          }`}
+                        >
+                          {project.statusLabel}
+                        </span>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {formatStatusLabel(project.status)}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedProject(project);
+                            setActiveProjectTab("overview");
+                          }}
+                          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
+                        >
+                          View Details
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <DataTable data={projectTableRows} columns={projectColumns} />
+          </>
+        )}
+
+        <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-500">
+            {pageStart > 0
+              ? `Showing ${pageStart}-${pageEnd} of ${pagination.totalItems} projects`
+              : "Showing 0 projects"}
+          </p>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              disabled={isLoading || !pagination.hasPrevPage}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((current) => current + 1)}
+              disabled={isLoading || !pagination.hasNextPage}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
         </div>
+      </div>
+        </>
       )}
     </div>
   );
 }
-
-export default function ProjectsPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="p-6 text-sm text-slate-500">Loading projects...</div>
-      }
-    >
-      <ProjectsPageContent />
-    </Suspense>
-  );
-}
-

@@ -15,7 +15,7 @@ const PieChart = ({ data, title }: { data: Array<{ label: string; value: number;
   return (
     <div className="bg-white rounded-xl p-6 border border-slate-200">
       <h3 className="text-sm font-medium text-slate-800 mb-4">{title}</h3>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
         <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
           {slices.map((slice, idx) => {
             const startRad = (slice.startAngle * Math.PI) / 180;
@@ -29,7 +29,7 @@ const PieChart = ({ data, title }: { data: Array<{ label: string; value: number;
             return <path key={idx} d={pathData} fill={slice.color} className="transition-opacity hover:opacity-80" />;
           })}
         </svg>
-        <div className="ml-4 space-y-2">
+        <div className="space-y-2 sm:ml-4">
           {data.map((item, idx) => (
             <div key={idx} className="flex items-center space-x-2">
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />

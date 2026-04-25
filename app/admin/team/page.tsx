@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { Eye, EyeOff, Mail, Plus, Search, Users } from 'lucide-react';
-import { mockTeamMembers } from '@/app/lib/mock-data';
 import DataTable, { Column } from '@/components/datatable';
 import { TeamMember } from '@/types';
+import axiosInstance from '@/app/lib/axiosinstance';
 
 const regionOptions = [
   { value: 'uk', label: 'United Kingdom (UK)' },
@@ -38,6 +38,7 @@ const getSubTeamKey = (member: TeamMember) => {
 };
 
 const getDesignation = (member: TeamMember) => {
+  if (member.roleName) return member.roleName;
   if (member.role === 'agent_x') return 'Business Analyst';
   if (member.role === 'agent_y') return 'CAD Engineer';
   if (member.role === 'architect') return 'Architect Lead';
@@ -55,12 +56,163 @@ type TeamFormData = {
   name: string;
   email: string;
   region: 'uk' | 'in';
+  roleId: string;
+};
+
+type RoleOption = {
+  _id?: string;
+  roleId: string;
+  roleName: string;
+  status?: number;
+};
+
+type ApiUser = {
+  id?: string;
+  name?: string;
+  email?: string;
+  region?: string;
+  isActive?: boolean;
+  roleId?: string;
+  roleName?: string;
+  userId?: string;
+  createdAt?: string;
+  resetPasswordStatus?: string;
+};
+
+const EMAIL_REGEX =  /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+
+const resolveDefaultRoleId = (roles: RoleOption[]) => {
+  const employeesRole = roles.find(
+    (role) => role.roleName?.toLowerCase() === 'employees',
+  );
+  return employeesRole?.roleId ?? roles[0]?.roleId ?? '';
+};
+
+const resolveRole = (
+  roleName: string | undefined,
+  region: TeamMember['region'],
+) => {
+  const normalized = (roleName ?? '').toLowerCase();
+  if (normalized.includes('architect')) return 'architect';
+  if (normalized.includes('admin')) return 'admin';
+  return region === 'uk' ? 'agent_x' : 'agent_y';
+};
+
+const normalizeRegion = (
+  region: string | undefined,
+  fallback: TeamMember['region'],
+) => {
+  if (region === 'uk') return 'uk';
+  if (region === 'in') return 'in';
+  return fallback;
+};
+
+const normalizeResetPasswordStatus = (
+  status: string | undefined,
+): TeamMember['resetPasswordStatus'] => {
+  const normalized = status?.toLowerCase();
+  if (normalized === 'pending') return 'pending';
+  if (normalized === 'approved') return 'approved';
+  if (normalized === 'rejected') return 'rejected';
+  return 'none';
+};
+
+const getResetPasswordStatus = (
+  source: Partial<ApiUser> & {
+    passwordRequestStatus?: string;
+    requestStatus?: string;
+    status?: string;
+  },
+) =>
+  normalizeResetPasswordStatus(
+    source.resetPasswordStatus ||
+      source.passwordRequestStatus ||
+      source.requestStatus ||
+      source.status,
+  );
+
+const getResetPasswordStatusLabel = (
+  status: TeamMember['resetPasswordStatus'],
+) => {
+  if (status === 'pending') return 'Pending Request';
+  if (status === 'approved') return 'Approved';
+  if (status === 'rejected') return 'Rejected';
+  return 'None';
+};
+
+const getResetPasswordStatusClasses = (
+  status: TeamMember['resetPasswordStatus'],
+) => {
+  if (status === 'pending') {
+    return 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100';
+  }
+  if (status === 'approved') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  }
+  if (status === 'rejected') {
+    return 'border-rose-200 bg-rose-50 text-rose-700';
+  }
+  return 'border-slate-200 bg-slate-100 text-slate-600';
+};
+
+const mapUserToMember = (
+  user: ApiUser,
+  fallbackRegion: TeamMember['region'],
+): TeamMember => {
+  const region = normalizeRegion(user.region, fallbackRegion);
+  const createdDate = user.createdAt
+    ? user.createdAt.split('T')[0]
+    : new Date().toISOString().split('T')[0];
+  const resolvedUserId =
+    user.userId ||
+    (user as { userid?: string }).userid ||
+    (user as { userID?: string }).userID ||
+    user.id;
+  const agentCodeSource = resolvedUserId || user.id || 'AGT-000';
+  return {
+    id: user.id || agentCodeSource,
+    userId: resolvedUserId,
+    name: user.name || 'Unnamed',
+    email: user.email || '',
+    roleId: user.roleId,
+    roleName: user.roleName,
+    role: resolveRole(user.roleName, region),
+    team: region === 'uk' ? 'london' : 'india',
+    region,
+    agentCode: `AGT-${agentCodeSource}`,
+    isActive: user.isActive ?? true,
+    defaultPassword: false,
+    resetPasswordStatus: getResetPasswordStatus(user),
+    assignedProjects: 0,
+    joinedDate: createdDate,
+    createdDate,
+  };
 };
 
 export default function TeamPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [members, setMembers] = useState<TeamMember[]>(mockTeamMembers);
+  const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [roles, setRoles] = useState<RoleOption[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [rolesError, setRolesError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [statusError, setStatusError] = useState('');
+  const [statusUpdating, setStatusUpdating] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [passwordRequestError, setPasswordRequestError] = useState('');
+  const [passwordRequestUpdating, setPasswordRequestUpdating] = useState<
+    Record<string, 'approve' | 'reject' | undefined>
+  >({});
+  const [passwordRequestDialog, setPasswordRequestDialog] =
+    useState<TeamMember | null>(null);
+  const [statusConfirm, setStatusConfirm] = useState<{
+    member: TeamMember;
+    nextActive: boolean;
+  } | null>(null);
   const [activeRegionTab, setActiveRegionTab] = useState<'uk' | 'in'>('uk');
   const [ukSubTeamFilter, setUkSubTeamFilter] = useState('all');
   const [indiaSubTeamFilter, setIndiaSubTeamFilter] = useState('all');
@@ -68,11 +220,140 @@ export default function TeamPage() {
     name: '',
     email: '',
     region: 'uk',
+    roleId: '',
   });
   const [revealedEmails, setRevealedEmails] = useState<Record<string, boolean>>(
     {},
   );
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
+  const defaultRoleId = useMemo(() => resolveDefaultRoleId(roles), [roles]);
 
+  const validateAgentForm = (name: string, email: string, roleId: string) => {
+    if (!name || !email) {
+      return 'Name and email are required.';
+    }
+    if (!name.trim() || !email.trim()) {
+      return 'Name and email cannot be empty.';
+    }
+
+if (!/^[A-Za-z\s]+$/.test(name.trim())) {
+  return 'Name can contain only letters and spaces.';
+}
+    if (name.includes('  ')) {
+      return 'Name cannot contain consecutive spaces.';
+    }
+
+
+    if (name.length < 3 || name.length > 50) {
+      return 'Name must be between 3 and 50 characters.';
+    }
+
+    if (!EMAIL_REGEX.test(email)) {
+      return 'Enter a valid email address.';
+    }
+    if (!roleId) {
+      return 'Role is required.';
+    }
+    return '';
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadRoles = async () => {
+      try {
+        setRolesLoading(true);
+        setRolesError('');
+        const response = await axiosInstance.get('/roles');
+        const payload =
+          response?.data?.roles ??
+          response?.data?.data?.roles ??
+          response?.data?.data ??
+          response?.data ??
+          [];
+        const rolesPayload = Array.isArray(payload) ? payload : [];
+        const normalized = rolesPayload
+          .map((role) => ({
+            _id: role?._id,
+            roleId: String(role?.roleId ?? ''),
+            roleName: String(role?.roleName ?? ''),
+            status: role?.status,
+          }))
+          .filter((role) => role.roleId && role.roleName);
+        if (isMounted) {
+          setRoles(normalized);
+        }
+      } catch (error) {
+        const message =
+          (error as { response?: { data?: { message?: string } }; message?: string })
+            ?.response?.data?.message ||
+          (error as { message?: string })?.message ||
+          'Failed to load roles.';
+        if (isMounted) {
+          setRolesError(message);
+        }
+      } finally {
+        if (isMounted) {
+          setRolesLoading(false);
+        }
+      }
+    };
+
+    loadRoles();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!defaultRoleId) return;
+    setFormData((prev) =>
+      prev.roleId ? prev : { ...prev, roleId: defaultRoleId },
+    );
+  }, [defaultRoleId]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadUsers = async () => {
+      try {
+        setIsLoading(true);
+        setLoadError('');
+        const response = await axiosInstance.get('/employee/users');
+        const payload = response?.data?.data ?? response?.data ?? [];
+        const users = Array.isArray(payload) ? payload : [];
+        if (isMounted) {
+          setMembers(users.map((user) => mapUserToMember(user, 'uk')));
+        }
+      } catch (error) {
+        const message =
+          (error as { response?: { data?: { message?: string } }; message?: string })
+            ?.response?.data?.message ||
+          (error as { message?: string })?.message ||
+          'Failed to load agents.';
+        if (isMounted) {
+          setLoadError(message);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadUsers();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const resolveMemberUserId = (member: TeamMember) =>
+    member.userId ||
+    (member.agentCode?.startsWith('AGT-') ? member.agentCode.slice(4) : '') ||
+    member.id;
   const filteredMembers = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     const subTeamFilter =
@@ -111,31 +392,203 @@ export default function TeamPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleAddAgent = () => {
-    if (!formData.name.trim() || !formData.email.trim()) {
+  const handleEditAgent = (member: TeamMember) => {
+    setEditingMember(member);
+    setCreateError('');
+    setFormData({
+      name: member.name,
+      email: member.email,
+      region: member.region,
+      roleId: member.roleId ?? defaultRoleId,
+    });
+    setShowAddModal(true);
+  };
+
+  const handleAddAgent = async () => {
+    if (isCreating) return;
+
+    const name = formData.name.trim();
+    const email = formData.email.trim();
+    const roleId = formData.roleId;
+
+    const validationError = validateAgentForm(name, email, roleId);
+    if (validationError) {
+      setCreateError(validationError);
       return;
     }
 
-    const nextIndex = members.length + 1;
-    const createdDate = new Date().toISOString().split('T')[0];
-    const newMember: TeamMember = {
-      id: `tm${String(nextIndex).padStart(3, '0')}`,
-      name: formData.name.trim(),
-      email: formData.email.trim(),
-      role: formData.region === 'uk' ? 'agent_x' : 'agent_y',
-      team: formData.region === 'uk' ? 'london' : 'india',
-      region: formData.region,
-      agentCode: `AGT-${String(nextIndex).padStart(3, '0')}`,
-      isActive: true,
-      defaultPassword: true,
-      assignedProjects: 0,
-      joinedDate: createdDate,
-      createdDate,
-    };
+    setIsCreating(true);
+    setCreateError('');
+    try {
+      const response = await axiosInstance.post('/employee/users', {
+        name,
+        email,
+        roleId,
+        region: formData.region,
+      });
 
-    setMembers((prev) => [...prev, newMember]);
-    setFormData({ name: '', email: '', region: 'uk' });
-    setShowAddModal(false);
+      const data = response?.data?.data ?? response?.data ?? {};
+      const nextIndex = members.length + 1;
+      const fallbackMember = mapUserToMember(
+        {
+          id: `tm${String(nextIndex).padStart(3, '0')}`,
+
+          name,
+          email,
+          roleId,
+          roleName: roles.find((role) => role.roleId === roleId)?.roleName,
+          region: formData.region,
+        },
+        formData.region,
+      );
+      const mapped = data?.id
+        ? mapUserToMember(data, formData.region)
+        : fallbackMember;
+      const newMember: TeamMember = {
+        ...fallbackMember,
+        ...mapped,
+        agentCode: data?.userId
+          ? `AGT-${data.userId}`
+          : mapped.agentCode || fallbackMember.agentCode,
+        roleId: data?.roleId || roleId || mapped.roleId || fallbackMember.roleId,
+        roleName:
+          data?.roleName ||
+          mapped.roleName ||
+          fallbackMember.roleName ||
+          roles.find((role) => role.roleId === roleId)?.roleName,
+        userId:
+          data?.userId ||
+          data?.userID ||
+          data?.userid ||
+          mapped.userId ||
+          fallbackMember.userId,
+        defaultPassword: data?.defaultPassword ?? true,
+        resetPasswordStatus: getResetPasswordStatus(data),
+      };
+
+      setMembers((prev) => [...prev, newMember]);
+      setFormData({
+        name: '',
+        email: '',
+        region: 'uk',
+        roleId: defaultRoleId,
+      });
+      setShowAddModal(false);
+      setEditingMember(null);
+    } catch (error) {
+      const message =
+        (error as { response?: { data?: { message?: string } }; message?: string })
+          ?.response?.data?.message ||
+        (error as { message?: string })?.message ||
+        'Failed to create agent.';
+      setCreateError(message);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleUpdateAgent = async () => {
+    if (isCreating || !editingMember) return;
+
+    const name = formData.name.trim();
+    const email = formData.email.trim();
+    const roleId = formData.roleId;
+    const userId =
+      editingMember.userId ||
+      (editingMember.agentCode?.startsWith('AGT-')
+        ? editingMember.agentCode.slice(4)
+        : '');
+
+    const validationError = validateAgentForm(name, email, roleId);
+    if (validationError) {
+      setCreateError(validationError);
+      return;
+    }
+    if (!userId) {
+      setCreateError('User ID is missing for this agent.');
+      return;
+    }
+    setIsCreating(true);
+    setCreateError('');
+    try {
+      const response = await axiosInstance.put(
+        `/employee/users/${userId}`,
+        {
+          name,
+          email,
+          roleId,
+          region: formData.region,
+        },
+      );
+
+      const data = response?.data?.data ?? response?.data ?? {};
+      setMembers((prev) =>
+        prev.map((member) => {
+          if (member.id !== editingMember.id) return member;
+          const updatedRegion = normalizeRegion(data?.region, formData.region);
+          const updatedRole = data?.roleName
+            ? resolveRole(data.roleName, updatedRegion)
+            : member.role;
+          const nextRoleId = data?.roleId || roleId || member.roleId;
+          const nextRoleName =
+            data?.roleName ||
+            roles.find((role) => role.roleId === nextRoleId)?.roleName ||
+            member.roleName;
+          return {
+            ...member,
+            name: data?.name || name,
+            email: data?.email || email,
+            region: updatedRegion,
+            team: updatedRegion === 'uk' ? 'london' : 'india',
+            role: updatedRole,
+            roleId: nextRoleId,
+            roleName: nextRoleName,
+        
+            agentCode: data?.userId ? `AGT-${data.userId}` : member.agentCode,
+            userId:
+              data?.userId ||
+              data?.userID ||
+              data?.userid ||
+              member.userId ||
+              member.id,
+            isActive: data?.isActive ?? member.isActive,
+            resetPasswordStatus:
+              data && typeof data === 'object'
+                ? getResetPasswordStatus({
+                    ...data,
+                    resetPasswordStatus:
+                      (data as { resetPasswordStatus?: string })
+                        ?.resetPasswordStatus ?? member.resetPasswordStatus,
+                  })
+                : member.resetPasswordStatus,
+            createdDate: data?.createdAt
+              ? String(data.createdAt).split('T')[0]
+              : member.createdDate,
+            joinedDate: data?.createdAt
+              ? String(data.createdAt).split('T')[0]
+              : member.joinedDate,
+          };
+        }),
+      );
+
+      setFormData({
+        name: '',
+        email: '',
+        region: 'uk',
+        roleId: defaultRoleId,
+      });
+      setShowAddModal(false);
+      setEditingMember(null);
+    } catch (error) {
+      const message =
+        (error as { response?: { data?: { message?: string } }; message?: string })
+          ?.response?.data?.message ||
+        (error as { message?: string })?.message ||
+        'Failed to update agent.';
+      setCreateError(message);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const toggleDefaultPassword = (id: string) => {
@@ -148,12 +601,169 @@ export default function TeamPage() {
     );
   };
 
-  const toggleActiveStatus = (id: string) => {
+  const requestStatusChange = (member: TeamMember) => {
+    const userId = resolveMemberUserId(member);
+    if (!userId) {
+      setStatusError('User ID is missing for this agent.');
+      return;
+    }
+    setStatusConfirm({ member, nextActive: !member.isActive });
+  };
+
+  const applyStatusChange = async (member: TeamMember, nextActive: boolean) => {
+    if (statusUpdating[member.id]) return;
+
+    const userId = resolveMemberUserId(member);
+    if (!userId) {
+      setStatusError('User ID is missing for this agent.');
+      return;
+    }
+
+    setStatusError('');
+    setStatusUpdating((prev) => ({ ...prev, [member.id]: true }));
     setMembers((prev) =>
-      prev.map((member) =>
-        member.id === id ? { ...member, isActive: !member.isActive } : member,
+      prev.map((item) =>
+        item.id === member.id ? { ...item, isActive: nextActive } : item,
       ),
     );
+
+    try {
+      const response = await axiosInstance.patch(
+        `/employee/users/${userId}/status`,
+        { isActive: nextActive },
+      );
+
+      const data = response?.data?.data ?? response?.data ?? {};
+      setMembers((prev) =>
+        prev.map((item) => {
+          if (item.id !== member.id) return item;
+          return {
+            ...item,
+            isActive: data?.isActive ?? nextActive,
+            userId:
+              data?.userId ||
+              data?.userID ||
+              data?.userid ||
+              item.userId ||
+              item.id,
+            agentCode: data?.userId ? `AGT-${data.userId}` : item.agentCode,
+          };
+        }),
+      );
+    } catch (error) {
+      setMembers((prev) =>
+        prev.map((item) =>
+          item.id === member.id ? { ...item, isActive: member.isActive } : item,
+        ),
+      );
+      const message =
+        (error as { response?: { data?: { message?: string } }; message?: string })
+          ?.response?.data?.message ||
+        (error as { message?: string })?.message ||
+        'Failed to update status.';
+      setStatusError(message);
+    } finally {
+      setStatusUpdating((prev) => {
+        const next = { ...prev };
+        delete next[member.id];
+        return next;
+      });
+    }
+  };
+
+  const handleConfirmStatusChange = () => {
+    if (!statusConfirm) return;
+    const { member, nextActive } = statusConfirm;
+    setStatusConfirm(null);
+    applyStatusChange(member, nextActive);
+  };
+
+  const handleCancelStatusChange = () => {
+    setStatusConfirm(null);
+  };
+
+  const openPasswordRequestDialog = (member: TeamMember) => {
+    if (member.resetPasswordStatus !== 'pending') return;
+
+    const userId = resolveMemberUserId(member);
+    if (!userId) {
+      setPasswordRequestError('User ID is missing for this password request.');
+      return;
+    }
+
+    setPasswordRequestError('');
+    setPasswordRequestDialog(member);
+  };
+
+  const closePasswordRequestDialog = () => {
+    setPasswordRequestDialog(null);
+    setPasswordRequestError('');
+  };
+
+  const handlePasswordRequestAction = async (
+    member: TeamMember,
+    action: 'approve' | 'reject',
+  ) => {
+    if (passwordRequestUpdating[member.id]) return;
+
+    const userId = resolveMemberUserId(member);
+    if (!userId) {
+      setPasswordRequestError('User ID is missing for this password request.');
+      return;
+    }
+
+    setPasswordRequestError('');
+    setPasswordRequestUpdating((prev) => ({ ...prev, [member.id]: action }));
+
+    try {
+      const response = await axiosInstance.post(
+        `/admin/password-requests/${userId}/${action}`,
+      );
+      const data = response?.data?.data ?? response?.data ?? {};
+      const nextStatus = getResetPasswordStatus({
+        ...(data as Record<string, unknown>),
+        status:
+          (data as { status?: string })?.status ||
+          (action === 'approve' ? 'approved' : 'rejected'),
+      });
+
+      setMembers((prev) =>
+        prev.map((item) => {
+          if (item.id !== member.id) return item;
+          const resolvedUserId =
+            (data as { userId?: string; userID?: string; userid?: string })
+              ?.userId ||
+            (data as { userId?: string; userID?: string; userid?: string })
+              ?.userID ||
+            (data as { userId?: string; userID?: string; userid?: string })
+              ?.userid ||
+            item.userId ||
+            item.id;
+
+          return {
+            ...item,
+            userId: resolvedUserId,
+            agentCode: resolvedUserId ? `AGT-${resolvedUserId}` : item.agentCode,
+            resetPasswordStatus: nextStatus,
+          };
+        }),
+      );
+
+      setPasswordRequestDialog(null);
+    } catch (error) {
+      const message =
+        (error as { response?: { data?: { message?: string } }; message?: string })
+          ?.response?.data?.message ||
+        (error as { message?: string })?.message ||
+        `Failed to ${action} the password reset request.`;
+      setPasswordRequestError(message);
+    } finally {
+      setPasswordRequestUpdating((prev) => {
+        const next = { ...prev };
+        delete next[member.id];
+        return next;
+      });
+    }
   };
 
   const toggleEmailReveal = (id: string) => {
@@ -257,6 +867,37 @@ export default function TeamPage() {
       ),
     },
     {
+      key: 'resetPasswordStatus',
+      label: 'Reset Password',
+      render: (_v, row) => {
+        const isPending = row.resetPasswordStatus === 'pending';
+
+        if (isPending) {
+          return (
+            <button
+              type="button"
+              onClick={() => openPasswordRequestDialog(row)}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${getResetPasswordStatusClasses(
+                row.resetPasswordStatus,
+              )}`}
+            >
+              {getResetPasswordStatusLabel(row.resetPasswordStatus)}
+            </button>
+          );
+        }
+
+        return (
+          <span
+            className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getResetPasswordStatusClasses(
+              row.resetPasswordStatus,
+            )}`}
+          >
+            {getResetPasswordStatusLabel(row.resetPasswordStatus)}
+          </span>
+        );
+      },
+    },
+    {
       key: 'isActive',
       label: 'Status',
       sortable: true,
@@ -264,10 +905,12 @@ export default function TeamPage() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => toggleActiveStatus(row.id)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+            onClick={() => requestStatusChange(row)}
+            disabled={statusUpdating[row.id]}
+            aria-busy={statusUpdating[row.id]}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-opacity ${
               row.isActive ? 'bg-emerald-500' : 'bg-slate-300'
-            }`}
+            } ${statusUpdating[row.id] ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
             <span
               className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
@@ -289,14 +932,15 @@ export default function TeamPage() {
     },
     {
       key: 'actions',
-      label: 'Profile',
+      label: 'Actions',
       render: (_v, row) => (
-        <Link
-          href={`/admin/team/${row.id}`}
+        <button
+          type="button"
+          onClick={() => handleEditAgent(row)}
           className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
         >
-          View
-        </Link>
+          Edit
+        </button>
       ),
     },
   ];
@@ -309,7 +953,17 @@ export default function TeamPage() {
           <p className="mt-2 text-slate-600">Manage agents across regions.</p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => {
+            setEditingMember(null);
+            setCreateError('');
+            setFormData({
+              name: '',
+              email: '',
+              region: 'uk',
+              roleId: defaultRoleId,
+            });
+            setShowAddModal(true);
+          }}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700 md:w-auto"
         >
           <Plus size={20} />
@@ -413,6 +1067,16 @@ export default function TeamPage() {
       </div>
 
       <div className="space-y-3 md:hidden">
+        {(loadError || statusError || passwordRequestError) && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {loadError || statusError || passwordRequestError}
+          </div>
+        )}
+        {isLoading && (
+          <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+            Loading agents...
+          </div>
+        )}
         {filteredMembers.map((member) => (
           <article
             key={member.id}
@@ -428,15 +1092,36 @@ export default function TeamPage() {
                 </Link>
                 <p className="mt-1 text-xs text-slate-500">{member.agentCode}</p>
               </div>
-              <span
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                  member.isActive
-                    ? 'bg-emerald-50 text-emerald-700'
-                    : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                {member.isActive ? 'Active' : 'Inactive'}
-              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => requestStatusChange(member)}
+                  disabled={statusUpdating[member.id]}
+                  aria-busy={statusUpdating[member.id]}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-opacity ${
+                    member.isActive ? 'bg-emerald-500' : 'bg-slate-300'
+                  } ${
+                    statusUpdating[member.id]
+                      ? 'opacity-60 cursor-not-allowed'
+                      : ''
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      member.isActive ? 'translate-x-4' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    member.isActive
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {member.isActive ? 'Active' : 'Inactive'}
+                </span>
+              </div>
             </div>
             <div className="mt-3 flex items-center gap-2">
               <p className="text-sm text-slate-700">
@@ -462,10 +1147,36 @@ export default function TeamPage() {
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
                 {getTeamLabel(member.team)}
               </span>
+              {member.resetPasswordStatus === 'pending' ? (
+                <button
+                  type="button"
+                  onClick={() => openPasswordRequestDialog(member)}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getResetPasswordStatusClasses(
+                    member.resetPasswordStatus,
+                  )}`}
+                >
+                  {getResetPasswordStatusLabel(member.resetPasswordStatus)}
+                </button>
+              ) : (
+                <span
+                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getResetPasswordStatusClasses(
+                    member.resetPasswordStatus,
+                  )}`}
+                >
+                  Reset Password: {getResetPasswordStatusLabel(member.resetPasswordStatus)}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => handleEditAgent(member)}
+                className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700"
+              >
+                Edit
+              </button>
             </div>
           </article>
         ))}
-        {filteredMembers.length === 0 && (
+        {!isLoading && filteredMembers.length === 0 && (
           <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
             No team members found for this filter.
           </div>
@@ -473,13 +1184,26 @@ export default function TeamPage() {
       </div>
 
       <div className="hidden md:block">
+        {(loadError || statusError || passwordRequestError) && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {loadError || statusError || passwordRequestError}
+          </div>
+        )}
+        {isLoading ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+            Loading agents...
+          </div>
+        ) : (
         <DataTable data={filteredMembers} columns={columns} />
+        )}
       </div>
 
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl md:p-8">
-            <h2 className="mb-6 text-2xl font-bold text-slate-900">Add Agent</h2>
+            <h2 className="mb-6 text-2xl font-bold text-slate-900">
+              {editingMember ? 'Edit Agent' : 'Add Agent'}
+            </h2>
 
             <div className="space-y-4">
               <div>
@@ -492,8 +1216,13 @@ export default function TeamPage() {
                   value={formData.name}
                   onChange={handleInputChange}
                   placeholder="e.g., Alex Morgan"
+                  minLength={3}
+                  maxLength={50}
                   className="w-full rounded-lg border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                <p className="mt-1 text-xs text-slate-500">
+                  Enter min 3 to max 50 characters.
+                </p>
               </div>
 
               <div>
@@ -506,6 +1235,7 @@ export default function TeamPage() {
                   value={formData.email}
                   onChange={handleInputChange}
                   placeholder="e.g., alex@company.com"
+                  autoComplete="email"
                   className="w-full rounded-lg border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -527,19 +1257,162 @@ export default function TeamPage() {
                   ))}
                 </select>
               </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-900">
+                  Role
+                </label>
+                <select
+                  name="roleId"
+                  value={formData.roleId}
+                  onChange={handleInputChange}
+                  disabled={rolesLoading}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100"
+                >
+                  {rolesLoading && <option value="">Loading roles...</option>}
+                  {!rolesLoading && roles.length === 0 && (
+                    <option value="">No roles available</option>
+                  )}
+                  {!rolesLoading &&
+                    roles.map((role) => (
+                      <option key={role.roleId} value={role.roleId}>
+                        {role.roleName}
+                      </option>
+                    ))}
+                </select>
+                {rolesError && (
+                  <p className="mt-1 text-xs font-medium text-red-600">
+                    {rolesError}
+                  </p>
+                )}
+              </div>
             </div>
+
+            {createError && (
+              <p className="mt-3 text-sm font-medium text-red-600">{createError}</p>
+            )}
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <button
-                onClick={handleAddAgent}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-blue-700"
+                onClick={editingMember ? handleUpdateAgent : handleAddAgent}
+                disabled={isCreating}
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-70"
               >
                 <Plus size={18} />
-                Add Agent
+                {editingMember
+                  ? isCreating
+                    ? 'Saving...'
+                    : 'Save Changes'
+                  : isCreating
+                    ? 'Adding...'
+                    : 'Add Agent'}
               </button>
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={() => {
+                  setShowAddModal(false);
+                  setEditingMember(null);
+                  setCreateError('');
+                }}
                 className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 font-medium text-slate-900 transition-colors hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {statusConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <h2 className="text-xl font-bold text-slate-900">
+              Confirm Status Change
+            </h2>
+            <p className="mt-3 text-sm text-slate-600">
+              Are you sure you want to{' '}
+              <span className="font-semibold">
+                {statusConfirm.nextActive ? 'activate' : 'deactivate'}
+              </span>{' '}
+              {statusConfirm.member.name}?
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button
+                onClick={handleConfirmStatusChange}
+                className="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-blue-700"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={handleCancelStatusChange}
+                className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 font-medium text-slate-900 transition-colors hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {passwordRequestDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl md:p-8">
+            <h2 className="text-xl font-bold text-slate-900">
+              Review Password Reset Request
+            </h2>
+            <p className="mt-3 text-sm text-slate-600">
+              {passwordRequestDialog.name} has requested a password reset. Please
+              review this request and choose whether to approve or reject it.
+            </p>
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm font-semibold text-amber-800">
+                Pending request for {passwordRequestDialog.name}
+              </p>
+              <p className="mt-1 text-sm text-amber-700">
+                Approving will continue the reset password flow for this user.
+                Rejecting will close the request without resetting the password.
+              </p>
+            </div>
+            {passwordRequestError && (
+              <p className="mt-4 text-sm font-medium text-red-600">
+                {passwordRequestError}
+              </p>
+            )}
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() =>
+                  handlePasswordRequestAction(passwordRequestDialog, 'approve')
+                }
+                disabled={Boolean(
+                  passwordRequestUpdating[passwordRequestDialog.id],
+                )}
+                className="flex-1 rounded-lg bg-emerald-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-70"
+              >
+                {passwordRequestUpdating[passwordRequestDialog.id] === 'approve'
+                  ? 'Approving...'
+                  : 'Approve'}
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  handlePasswordRequestAction(passwordRequestDialog, 'reject')
+                }
+                disabled={Boolean(
+                  passwordRequestUpdating[passwordRequestDialog.id],
+                )}
+                className="flex-1 rounded-lg bg-rose-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-rose-700 disabled:opacity-70"
+              >
+                {passwordRequestUpdating[passwordRequestDialog.id] === 'reject'
+                  ? 'Rejecting...'
+                  : 'Reject'}
+              </button>
+              <button
+                type="button"
+                onClick={closePasswordRequestDialog}
+                disabled={Boolean(
+                  passwordRequestUpdating[passwordRequestDialog.id],
+                )}
+                className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 font-medium text-slate-900 transition-colors hover:bg-slate-50 disabled:opacity-70"
               >
                 Cancel
               </button>
