@@ -3,9 +3,11 @@ import {
   FiUser,
   FiLogOut,
   FiLayers,
+  FiBriefcase,
   FiCheckSquare,
   FiMessageSquare,
   FiCalendar,
+  FiClipboard,
 } from "react-icons/fi"
 import type { IconType } from "react-icons"
 
@@ -45,13 +47,13 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
   {
     id: "services",
     label: "Services",
-    icon: FiLayers,
+    icon: FiBriefcase,
     href: "/admin/services"
   },
   {
     id: "stages",
     label: "Project Stages",
-    icon: FiLayers,
+    icon: FiClipboard,
     href: "/admin/ProjectStages"
   },
   {

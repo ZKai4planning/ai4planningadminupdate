@@ -58,7 +58,7 @@ export default function GlobalCommandPalette() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed right-16 top-3 z-40 hidden h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white/95 px-3.5 text-xs text-slate-700 shadow-sm hover:bg-white lg:flex xl:top-4"
+        className="fixed right-16 top-4 z-40 hidden h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white/95 px-3.5 text-xs text-slate-700 shadow-sm hover:bg-white xl:flex"
       >
         <Search size={14} />
         Quick Search

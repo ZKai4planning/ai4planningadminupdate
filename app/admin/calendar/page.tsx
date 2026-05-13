@@ -22,6 +22,9 @@ type AdminCalendarEvent = {
   priority: EventPriority
 }
 
+const EVENT_CATEGORIES: EventCategory[] = ["project", "council", "payment", "meeting"]
+const DAY_MS = 24 * 60 * 60 * 1000
+
 const categoryMeta: Record<
   EventCategory,
   { label: string; chipClass: string; dotClass: string }
@@ -61,6 +64,14 @@ const toIsoDate = (value: Date | string) => {
   ).padStart(2, "0")}`
 }
 
+const toDisplayDate = (isoDate: string) =>
+  new Date(`${isoDate}T00:00:00`).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  })
+
 const priorityFromDays = (isoDate: string): EventPriority => {
   const now = new Date()
   const target = new Date(`${isoDate}T00:00:00`)
@@ -84,17 +95,81 @@ const getDefaultDate = () => {
   return upcoming ? new Date(`${upcoming}T00:00:00`) : new Date()
 }
 
+const buildDummyEvents = (): AdminCalendarEvent[] => {
+  const today = new Date()
+  const dates = [
+    toIsoDate(new Date(today.getTime() - 2 * DAY_MS)),
+    toIsoDate(today),
+    toIsoDate(new Date(today.getTime() + DAY_MS)),
+    toIsoDate(new Date(today.getTime() + 3 * DAY_MS)),
+    toIsoDate(new Date(today.getTime() + 6 * DAY_MS)),
+    toIsoDate(new Date(today.getTime() + 9 * DAY_MS)),
+  ]
+
+  return [
+    {
+      id: "dummy-project-audit",
+      date: dates[0],
+      title: "Pre-delivery checklist review",
+      subtitle: "Internal QA handoff",
+      detail: "Dummy event: Verify final deliverables and client-ready notes before release.",
+      category: "project",
+      priority: "medium",
+    },
+    {
+      id: "dummy-council-followup",
+      date: dates[1],
+      title: "Council document follow-up",
+      subtitle: "NDA and missing attachments",
+      detail: "Dummy event: Follow up with council office on pending attachments and decision timeline.",
+      category: "council",
+      priority: "high",
+    },
+    {
+      id: "dummy-payment-reminder",
+      date: dates[2],
+      title: "Invoice reminder batch",
+      subtitle: "Pending invoices",
+      detail: "Dummy event: Send reminders for pending invoices due this week.",
+      category: "payment",
+      priority: "high",
+    },
+    {
+      id: "dummy-team-sync",
+      date: dates[3],
+      title: "Weekly planning sync",
+      subtitle: "Leads and operations",
+      detail: "Dummy event: Review pipeline priorities, blockers, and ETA shifts.",
+      category: "meeting",
+      priority: "medium",
+    },
+    {
+      id: "dummy-project-risk",
+      date: dates[4],
+      title: "Risk review milestone",
+      subtitle: "Project Delta",
+      detail: "Dummy event: Confirm mitigations and owners before client review.",
+      category: "project",
+      priority: "low",
+    },
+    {
+      id: "dummy-client-checkin",
+      date: dates[5],
+      title: "Client progress check-in",
+      subtitle: "Acme Estates",
+      detail: "Dummy event: Walk through progress, council responses, and next steps.",
+      category: "meeting",
+      priority: "medium",
+    },
+  ]
+}
+
 export default function AdminCalendarPage() {
   const initialDate = getDefaultDate()
   const [currentDate, setCurrentDate] = useState(initialDate)
   const [selectedDate, setSelectedDate] = useState(toIsoDate(initialDate))
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
-  const [activeCategories, setActiveCategories] = useState<EventCategory[]>([
-    "project",
-    "council",
-    "payment",
-    "meeting",
-  ])
+  const [activeCategories, setActiveCategories] = useState<EventCategory[]>(EVENT_CATEGORIES)
 
   const today = new Date()
   const year = currentDate.getFullYear()
@@ -156,7 +231,8 @@ export default function AdminCalendarPage() {
       }
     })
 
-    return [...projectEvents, ...councilEvents, ...paymentEvents, ...meetingEvents].sort(
+    const dummyEvents = buildDummyEvents()
+    return [...projectEvents, ...councilEvents, ...paymentEvents, ...meetingEvents, ...dummyEvents].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
     )
   }, [])
@@ -206,6 +282,18 @@ export default function AdminCalendarPage() {
     )
   }, [filteredEvents, year, month])
 
+  const monthPriorityCounts = useMemo(() => {
+    const prefix = `${year}-${String(month + 1).padStart(2, "0")}`
+    return filteredEvents.reduce(
+      (acc, event) => {
+        if (!event.date.startsWith(prefix)) return acc
+        acc[event.priority] += 1
+        return acc
+      },
+      { high: 0, medium: 0, low: 0 },
+    )
+  }, [filteredEvents, year, month])
+
   const selectDate = (isoDate: string) => {
     setSelectedDate(isoDate)
     const events = eventsByDate.get(isoDate) ?? []
@@ -248,7 +336,7 @@ export default function AdminCalendarPage() {
           key={day}
           onClick={() => selectDate(isoDate)}
           className={`border border-slate-200 p-2 min-h-[130px] bg-white text-left transition hover:bg-slate-50 cursor-pointer ${
-            isToday ? "bg-blue-50" : ""
+            isToday ? "bg-blue-50 ring-2 ring-blue-300 ring-inset" : ""
           } ${isSelected ? "ring-2 ring-blue-500 ring-inset" : ""}`}
         >
           <div
@@ -257,7 +345,7 @@ export default function AdminCalendarPage() {
             }`}
           >
             <span>{day}</span>
-            <span className="text-[11px] text-slate-400">{dayEvents.length || ""}</span>
+            <span className="text-[11px] text-slate-400">{isToday ? "Today" : dayEvents.length || ""}</span>
           </div>
 
           <div className="space-y-1">
@@ -287,8 +375,21 @@ export default function AdminCalendarPage() {
       )
     }
 
+    const trailingCells = (7 - (cells.length % 7)) % 7
+    for (let i = 0; i < trailingCells; i++) {
+      cells.push(
+        <div
+          key={`trailing-empty-${i}`}
+          className="border border-slate-200 bg-slate-50/50 min-h-[130px]"
+        />,
+      )
+    }
+
     return cells
   }
+
+  const hasActiveFilters = activeCategories.length > 0
+  const isSelectedDateToday = selectedDate === toIsoDate(new Date())
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
@@ -324,7 +425,7 @@ export default function AdminCalendarPage() {
 
         <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
           <Filter size={15} className="text-slate-500" />
-          {(["project", "council", "payment", "meeting"] as EventCategory[]).map((category) => (
+          {EVENT_CATEGORIES.map((category) => (
             <button
               key={category}
               type="button"
@@ -354,6 +455,12 @@ export default function AdminCalendarPage() {
           <div className="grid grid-cols-7 border border-slate-200 rounded-lg overflow-hidden">
             {generateCalendarCells()}
           </div>
+
+          {!hasActiveFilters && (
+            <p className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              No categories selected. Enable at least one filter to see events.
+            </p>
+          )}
         </div>
 
         <aside className="space-y-4">
@@ -362,7 +469,7 @@ export default function AdminCalendarPage() {
             <p className="text-xs text-slate-500 mt-1">{monthCounts.total} tracked items</p>
 
             <div className="mt-3 space-y-2">
-              {(["project", "council", "payment", "meeting"] as EventCategory[]).map((category) => (
+              {EVENT_CATEGORIES.map((category) => (
                 <div key={category} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
                     <span className={`w-2.5 h-2.5 rounded-full ${categoryMeta[category].dotClass}`} />
@@ -375,8 +482,29 @@ export default function AdminCalendarPage() {
           </div>
 
           <div className="bg-white border border-slate-200 rounded-xl p-4">
+            <p className="text-sm font-semibold text-slate-900">Priority snapshot</p>
+            <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-lg border border-red-100 bg-red-50 px-2 py-2">
+                <p className="text-[11px] uppercase tracking-wide text-red-700">High</p>
+                <p className="text-base font-semibold text-red-800">{monthPriorityCounts.high}</p>
+              </div>
+              <div className="rounded-lg border border-amber-100 bg-amber-50 px-2 py-2">
+                <p className="text-[11px] uppercase tracking-wide text-amber-700">Medium</p>
+                <p className="text-base font-semibold text-amber-800">{monthPriorityCounts.medium}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2">
+                <p className="text-[11px] uppercase tracking-wide text-slate-700">Low</p>
+                <p className="text-base font-semibold text-slate-800">{monthPriorityCounts.low}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-xl p-4">
             <p className="text-sm font-semibold text-slate-900">Event details</p>
-            <p className="text-xs text-slate-500 mt-1">{selectedDate}</p>
+            <p className={`text-xs mt-1 ${isSelectedDateToday ? "text-blue-700 font-semibold" : "text-slate-500"}`}>
+              {toDisplayDate(selectedDate)}
+              {isSelectedDateToday ? " (Today)" : ""}
+            </p>
 
             {!selectedEvent && (
               <p className="text-sm text-slate-500 mt-3">Select a date or event chip to view details.</p>
@@ -442,3 +570,4 @@ export default function AdminCalendarPage() {
     </div>
   )
 }
+

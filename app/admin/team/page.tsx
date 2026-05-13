@@ -946,7 +946,7 @@ if (!/^[A-Za-z\s]+$/.test(name.trim())) {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-1 pb-2 sm:px-0">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Team</h1>
@@ -1124,8 +1124,8 @@ if (!/^[A-Za-z\s]+$/.test(name.trim())) {
               </div>
             </div>
             <div className="mt-3 flex items-center gap-2">
-              <p className="text-sm text-slate-700">
-                {(revealedEmails[member.id] ?? false) ? member.email : '••••••••••'}
+              <p className="min-w-0 break-all text-sm text-slate-700">
+                {(revealedEmails[member.id] ?? false) ? member.email : '**********'}
               </p>
               <button
                 type="button"
@@ -1199,8 +1199,8 @@ if (!/^[A-Za-z\s]+$/.test(name.trim())) {
       </div>
 
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl md:p-8">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4">
+          <div className="my-4 w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6 md:p-8">
             <h2 className="mb-6 text-2xl font-bold text-slate-900">
               {editingMember ? 'Edit Agent' : 'Add Agent'}
             </h2>
@@ -1323,8 +1323,8 @@ if (!/^[A-Za-z\s]+$/.test(name.trim())) {
       )}
 
       {statusConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4">
+          <div className="my-4 w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6">
             <h2 className="text-xl font-bold text-slate-900">
               Confirm Status Change
             </h2>
@@ -1354,8 +1354,8 @@ if (!/^[A-Za-z\s]+$/.test(name.trim())) {
       )}
 
       {passwordRequestDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl md:p-8">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4">
+          <div className="my-4 w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6 md:p-8">
             <h2 className="text-xl font-bold text-slate-900">
               Review Password Reset Request
             </h2>
@@ -1423,3 +1423,4 @@ if (!/^[A-Za-z\s]+$/.test(name.trim())) {
     </div>
   );
 }
+

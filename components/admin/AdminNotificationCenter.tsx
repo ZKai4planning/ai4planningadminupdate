@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useMemo, useState } from "react"
 import { Bell } from "lucide-react"
@@ -24,7 +24,7 @@ export default function AdminNotificationCenter() {
     const alerts: NotificationItem[] = mockSystemAlerts.map((alert) => ({
       id: `alert-${alert.id}`,
       title: alert.title,
-      subtitle: `${alert.service} • ${alert.status}`,
+      subtitle: `${alert.service} - ${alert.status}`,
       level: alert.severity as NotificationItem["level"],
     }))
 
@@ -39,31 +39,31 @@ export default function AdminNotificationCenter() {
   }, [])
 
   return (
-    <div className="fixed right-3 top-3 z-40 flex flex-col items-end sm:right-4 sm:top-4">
+    <div className="fixed right-3 top-[4.25rem] z-40 flex flex-col items-end sm:right-4 md:top-4">
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="relative h-10 w-10 flex items-center justify-center bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+        className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50"
         aria-label="Toggle notifications"
       >
         <Bell size={18} className="text-slate-700" />
-        <span className="absolute -top-1 -right-1 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] h-4 min-w-4 px-1">
+        <span className="absolute right-0.5 top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] text-white ring-2 ring-white">
           {notifications.length}
         </span>
       </button>
 
       {open && (
         <div className="absolute right-0 top-12 w-80 max-w-[calc(100vw-1.5rem)] rounded-xl border border-slate-200 bg-white shadow-xl sm:w-96 sm:max-w-[92vw]">
-          <div className="px-4 py-3 border-b border-slate-200">
+          <div className="border-b border-slate-200 px-4 py-3">
             <p className="text-sm font-semibold text-slate-900">Notification Center</p>
             <p className="text-xs text-slate-500">Critical alerts and admin feedback queue</p>
           </div>
           <div className="max-h-96 overflow-auto p-2">
             {notifications.map((item) => (
-              <div key={item.id} className="rounded-lg border border-slate-100 p-3 mb-2">
+              <div key={item.id} className="mb-2 rounded-lg border border-slate-100 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-medium text-slate-800">{item.title}</p>
-                  <span className={`text-[10px] px-2 py-0.5 rounded ${levelClass[item.level]}`}>
+                  <span className={`rounded px-2 py-0.5 text-[10px] ${levelClass[item.level]}`}>
                     {item.level}
                   </span>
                 </div>
