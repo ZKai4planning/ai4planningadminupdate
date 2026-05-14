@@ -141,7 +141,15 @@ type ApiEligibilityForm = {
       phoneNumber?: string;
       countryCode?: string;
       postcode?: string;
-      siteAddress?: string;
+      siteAddress?:
+        | string
+        | {
+            line1?: string;
+            line2?: string;
+            city?: string;
+            state?: string;
+            postcode?: string;
+          };
     };
     councilApplicationHistory?: {
       councilName?: string;
@@ -521,6 +529,29 @@ const toText = (value: unknown) => {
 const joinValues = (...values: Array<string | undefined>) =>
   values.map((value) => value?.trim()).filter(Boolean).join(", ");
 
+const formatAddress = (value: unknown) => {
+  if (typeof value === "string") return value.trim();
+
+  if (value && typeof value === "object") {
+    const address = value as {
+      line1?: unknown;
+      line2?: unknown;
+      city?: unknown;
+      state?: unknown;
+      postcode?: unknown;
+    };
+
+    const line1 = toText(address.line1).trim();
+    const line2 = toText(address.line2).trim();
+    const city = toText(address.city).trim();
+    const state = toText(address.state).trim();
+    const postcode = toText(address.postcode).trim();
+    return [line1, line2, city, state, postcode].filter(Boolean).join(", ");
+  }
+
+  return "";
+};
+
 const getApplicantFullName = (applicantDetails?: ApiEligibilityApplicantDetails) => {
   if (!applicantDetails) return "";
 
@@ -578,7 +609,7 @@ const buildEligibilityQuestionnaire = (
     propertyDetails: {
       applicantFullName: applicantFullName || project.clientName,
       contactEmailOrPhone: applicantContact || project.clientEmail,
-      siteAddress: applicantDetails?.siteAddress || "Not provided",
+      siteAddress: formatAddress(applicantDetails?.siteAddress) || "Not provided",
       postcode: applicantDetails?.postcode || "Not provided",
       propertyType: propertyAndOwnership?.propertyType || "Not provided",
       ownershipStatus: propertyAndOwnership?.ownershipStatus || "Not provided",
@@ -939,7 +970,7 @@ export default function ProjectsPage() {
         selectedProject.subService !== "Not specified"
           ? selectedProject.subService
           : undefined,
-      location: applicantDetails?.siteAddress || "Not available",
+      location: formatAddress(applicantDetails?.siteAddress) || "Not available",
       postcode: applicantDetails?.postcode || "Not available",
       status: mapStatusToProjectStatus(selectedProject.status),
       createdDate: selectedProject.createdAt || new Date().toISOString(),
@@ -975,7 +1006,7 @@ export default function ProjectsPage() {
           ? selectedProject.clientEmail
           : ""),
       phone: "",
-      address: applicantDetails?.siteAddress || "Not available",
+      address: formatAddress(applicantDetails?.siteAddress) || "Not available",
       postcode: applicantDetails?.postcode || "Not available",
       serviceType: "residential",
       status: "registered",

@@ -17,6 +17,29 @@ import {
 
 const PROFILE_CACHE_KEY = "adminProfile";
 
+const toNonEmptyString = (value: unknown) =>
+  typeof value === "string" && value.trim().length > 0;
+
+const buildProfileStatus = (source: {
+  name?: unknown;
+  email?: unknown;
+  phoneNumber?: unknown;
+  profilePicture?: unknown;
+}) => {
+  const checks = [
+    toNonEmptyString(source.name),
+    toNonEmptyString(source.email),
+    toNonEmptyString(source.phoneNumber),
+    toNonEmptyString(source.profilePicture),
+  ];
+
+  const totalFields = checks.length;
+  const completedFields = checks.filter(Boolean).length;
+  const completionPercentage = Math.round((completedFields / totalFields) * 100);
+
+  return { completionPercentage, completedFields, totalFields };
+};
+
 export default function Sidebar({
   collapsed,
   onToggle,
@@ -61,6 +84,14 @@ export default function Sidebar({
 
     if (authName) setUserName(authName);
     if (authEmail) setEmail(authEmail);
+    setProfileStatus(
+      buildProfileStatus({
+        name: authName,
+        email: authEmail,
+        phoneNumber: "",
+        profilePicture: "",
+      })
+    );
 
     const cachedProfile =
       typeof window !== "undefined"
@@ -78,6 +109,14 @@ export default function Sidebar({
         setUserName(parsed.name || authName || "Admin User");
         setEmail(parsed.email || authEmail || "");
         setProfilePicture(parsed.profilePicture || "");
+        setProfileStatus(
+          buildProfileStatus({
+            name: parsed.name || authName,
+            email: parsed.email || authEmail,
+            phoneNumber: "",
+            profilePicture: parsed.profilePicture,
+          })
+        );
       } catch {}
     }
 
@@ -93,30 +132,18 @@ export default function Sidebar({
         setUserName(data.name || authName || "Admin User");
         setEmail(data.email || authEmail || "");
         setProfilePicture(data.profilePicture || "");
+        setProfileStatus(
+          buildProfileStatus({
+            name: data.name || authName,
+            email: data.email || authEmail,
+            phoneNumber: data.phoneNumber,
+            profilePicture: data.profilePicture,
+          })
+        );
       } catch {}
     };
 
-    const loadProfileStatus = async () => {
-      if (!userId) return;
-
-      try {
-        const res = await axiosInstance.get(`/admin/profile/${userId}/status`);
-        const data = res?.data ?? {};
-
-        if (!isMounted) return;
-
-        setProfileStatus({
-          completionPercentage: data.completionPercentage ?? 0,
-          completedFields: data.completedFields ?? 0,
-          totalFields: data.totalFields ?? 0,
-        });
-      } catch (err) {
-        console.error("Profile status failed", err);
-      }
-    };
-
     loadProfile();
-    loadProfileStatus();
 
     const handleProfileUpdated = () => {
       const latestProfile =
@@ -137,11 +164,18 @@ export default function Sidebar({
           setUserName(parsed.name || authName || "Admin User");
           setEmail(parsed.email || authEmail || "");
           setProfilePicture(parsed.profilePicture || "");
+          setProfileStatus(
+            buildProfileStatus({
+              name: parsed.name || authName,
+              email: parsed.email || authEmail,
+              phoneNumber: "",
+              profilePicture: parsed.profilePicture,
+            })
+          );
         } catch {}
       }
 
       void loadProfile();
-      void loadProfileStatus();
     };
 
     window.addEventListener("admin-profile-updated", handleProfileUpdated);
